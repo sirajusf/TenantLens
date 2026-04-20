@@ -1,0 +1,83 @@
+@model LeaseLense.Web.Models.Properties.PropertyProfileViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>@Model.Title</h1>
+        <p>@Model.StreetAddress, @Model.City, @Model.Country</p>
+        <div class="mvp-tags">
+            <span class="mvp-badge primary">Rating @(Model.AverageRating?.ToString("0.0") ?? "N/A")</span>
+            <span class="mvp-badge">Reviews @Model.ReviewCount</span>
+            <span class="mvp-badge">Reports @Model.ScamReports.Count</span>
+            <span class="mvp-badge warn">Scam severity @(Model.AverageScamSeverity?.ToString("0.0") ?? "N/A")</span>
+            @if (!string.IsNullOrWhiteSpace(Model.LandlordName))
+            {
+                <span class="mvp-badge">Landlord @Model.LandlordName</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.ManagementCompanyName))
+            {
+                <span class="mvp-badge">Mgmt @Model.ManagementCompanyName</span>
+            }
+        </div>
+    </div>
+
+    <div class="section-head mt-3">
+        <h2>Reviews</h2>
+    </div>
+    @if (!Model.Reviews.Any())
+    {
+        <div class="mvp-empty">No reviews available for this property yet.</div>
+    }
+    else
+    {
+        <div class="mvp-grid">
+            @foreach (var review in Model.Reviews)
+            {
+                <article class="mvp-card accent-indigo">
+                    <div class="mvp-card-head">
+                        <h2>@review.ReviewerAlias</h2>
+                        <span class="mvp-badge primary">@review.AverageRating.ToString("0.0")/5</span>
+                    </div>
+                    <p class="mvp-subtext">@review.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</p>
+                    <p class="mvp-text">@review.ReviewText</p>
+                    <div class="mvp-tags">
+                        @if (review.MonthlyRent.HasValue)
+                        {
+                            <span class="mvp-badge">Rent @review.MonthlyRent.Value.ToString("C0")</span>
+                        }
+                        @if (review.IsVerified)
+                        {
+                            <span class="mvp-badge success">Verified</span>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
+    <div class="section-head mt-4">
+        <h2>Reports</h2>
+    </div>
+    @if (!Model.ScamReports.Any())
+    {
+        <div class="mvp-empty">No scam reports available for this property yet.</div>
+    }
+    else
+    {
+        <div class="mvp-grid">
+            @foreach (var report in Model.ScamReports)
+            {
+                <article class="mvp-card accent-coral">
+                    <div class="mvp-card-head">
+                        <h2>@report.ScamType</h2>
+                        <span class="mvp-badge danger">Severity @(report.SeverityScore?.ToString("0.0") ?? "N/A")</span>
+                    </div>
+                    <p class="mvp-subtext">@report.DateReported.ToLocalTime().ToString("MMM d, yyyy")</p>
+                    <p class="mvp-text">@report.Description</p>
+                </article>
+            }
+        </div>
+    }
+</section>

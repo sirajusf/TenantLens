@@ -1,0 +1,113 @@
+@model LeaseLense.Web.Models.Reviews.ReviewCreatePageViewModel
+@{
+    ViewData["Title"] = "Write Review";
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>Write a Rental Review</h1>
+        <p>Share your honest experience to help other renters make safer choices.</p>
+    </div>
+
+    <form asp-action="Create" method="post" class="mvp-form">
+        <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
+        <div class="mvp-form-grid">
+            <div class="mvp-field full property-select-field">
+                <label asp-for="Form.PropertyId" class="mvp-label">Property</label>
+                <select asp-for="Form.PropertyId" class="mvp-select">
+                    <option value="">Select listed property</option>
+                    @foreach (var property in Model.Properties)
+                    {
+                        <option value="@property.PropertyId">@property.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="Form.PropertyId" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field full">
+                <label class="mvp-label">
+                    <input asp-for="Form.PropertyNotListed" type="checkbox" />
+                    Property not listed (add it now)
+                </label>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewPropertyTitle" class="mvp-label">New property title</label>
+                <input asp-for="Form.NewPropertyTitle" class="mvp-input" />
+                <span asp-validation-for="Form.NewPropertyTitle" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewPropertyStreetAddress" class="mvp-label">Street address</label>
+                <input asp-for="Form.NewPropertyStreetAddress" class="mvp-input" />
+                <span asp-validation-for="Form.NewPropertyStreetAddress" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewPropertyCity" class="mvp-label">City</label>
+                <input asp-for="Form.NewPropertyCity" class="mvp-input" />
+                <span asp-validation-for="Form.NewPropertyCity" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewPropertyCountry" class="mvp-label">Country</label>
+                <input asp-for="Form.NewPropertyCountry" class="mvp-input" />
+                <span asp-validation-for="Form.NewPropertyCountry" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field">
+                <label asp-for="Form.OverallRating" class="mvp-label">Overall rating (1-5)</label>
+                <input asp-for="Form.OverallRating" type="number" min="1" max="5" class="mvp-input" />
+                <span asp-validation-for="Form.OverallRating" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field">
+                <label asp-for="Form.MonthlyRent" class="mvp-label">Monthly rent (optional)</label>
+                <input asp-for="Form.MonthlyRent" type="number" min="0" step="0.01" class="mvp-input" />
+                <span asp-validation-for="Form.MonthlyRent" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field full">
+                <label asp-for="Form.UnitType" class="mvp-label">Unit type (optional)</label>
+                <input asp-for="Form.UnitType" class="mvp-input" />
+                <span asp-validation-for="Form.UnitType" class="mvp-error"></span>
+            </div>
+
+            <div class="mvp-field full">
+                <label asp-for="Form.ReviewText" class="mvp-label">Review</label>
+                <textarea asp-for="Form.ReviewText" class="mvp-textarea" rows="5"></textarea>
+                <span asp-validation-for="Form.ReviewText" class="mvp-error"></span>
+            </div>
+        </div>
+
+        <div class="mvp-actions">
+            <button type="submit" class="mvp-btn">Submit Review</button>
+            <a class="mvp-btn ghost" asp-action="Index">Cancel</a>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const checkbox = document.getElementById('Form_PropertyNotListed');
+            const fields = document.querySelectorAll('.property-not-listed-field');
+            const propertySelectField = document.querySelector('.property-select-field');
+            const propertySelect = document.getElementById('Form_PropertyId');
+            if (!checkbox || fields.length === 0 || !propertySelectField || !propertySelect) return;
+
+            const toggle = () => {
+                fields.forEach((field) => field.classList.toggle('is-hidden', !checkbox.checked));
+                propertySelect.disabled = checkbox.checked;
+                propertySelectField.classList.toggle('is-deactivated', checkbox.checked);
+                if (checkbox.checked) {
+                    propertySelect.value = '';
+                }
+            };
+
+            checkbox.addEventListener('change', toggle);
+            toggle();
+        })();
+    </script>
+}

@@ -1,0 +1,55 @@
+@model LeaseLense.Web.Models.ScamReports.ScamReportIndexViewModel
+@{
+    ViewData["Title"] = "Scam Reports";
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>Scam & Fraud Reports</h1>
+        <p>Community-reported fraud signals to help renters avoid high-risk listings.</p>
+        <div class="mvp-toolbar">
+            <div class="quick-chips">
+                <span>MVP 3</span>
+                <span>Fraud Intelligence</span>
+                <span>Early Warning</span>
+            </div>
+            <a class="mvp-btn danger" asp-action="Create">Submit Report</a>
+        </div>
+    </div>
+
+    @if (TempData["ScamReportSuccess"] is string successMessage)
+    {
+        <div class="mvp-empty">@successMessage</div>
+    }
+
+    @if (!Model.Reports.Any())
+    {
+        <div class="mvp-empty">No scam reports yet.</div>
+    }
+    else
+    {
+        <div class="mvp-grid">
+            @foreach (var report in Model.Reports)
+            {
+                <article class="mvp-card accent-coral">
+                    <div class="mvp-card-head">
+                        <h2>@report.PropertyTitle</h2>
+                        <span class="mvp-badge @((report.SeverityScore ?? 0) >= 3 ? "danger" : "warn")">
+                            Severity @(report.SeverityScore?.ToString("0.0") ?? "N/A")
+                        </span>
+                    </div>
+                    <p class="mvp-subtext">@report.City · @report.ScamType</p>
+                    <p class="mvp-text">@report.Description</p>
+                    <div class="mvp-tags">
+                        <span class="mvp-badge">Reported @report.DateReported.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                        <a class="card-action-link"
+                           asp-controller="Properties"
+                           asp-action="Details"
+                           asp-route-id="@report.PropertyId">View property</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+<button type="button" class="list-top-btn" data-scroll-top aria-label="Back to top">Top</button>

@@ -1,0 +1,6 @@
+@LeaseLense.Api_HostAddress = http://localhost:5184
+
+GET {{LeaseLense.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

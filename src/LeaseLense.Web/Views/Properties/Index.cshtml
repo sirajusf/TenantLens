@@ -1,0 +1,52 @@
+@model LeaseLense.Web.Models.Properties.PropertyDirectoryPageViewModel
+@{
+    ViewData["Title"] = "Properties";
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>All Properties</h1>
+        <p>Search by property name or address, then open the property page for full reviews, reports, and reputation signals.</p>
+        <form method="get" class="search-bar" role="search" asp-controller="Properties" asp-action="Index">
+            <label class="sr-only" for="property-directory-search">Search properties by name or address</label>
+            <input id="property-directory-search" type="search" name="q" value="@Model.QueryText" placeholder="Search properties by name or address..." />
+            <button type="submit">Search Properties</button>
+        </form>
+    </div>
+
+    @if (!Model.Properties.Any())
+    {
+        <div class="mvp-empty mt-3">No properties found. Try a different name or address.</div>
+    }
+    else
+    {
+        <div class="mvp-grid property-directory-grid mt-3">
+            @foreach (var property in Model.Properties)
+            {
+                <a class="mvp-card accent-cyan property-directory-card"
+                   asp-controller="Properties"
+                   asp-action="Details"
+                   asp-route-id="@property.PropertyId"
+                   aria-label="Open @property.Title property page">
+                    <div class="mvp-card-head">
+                        <h2 class="property-title">@property.Title</h2>
+                        @if (property.AverageRating.HasValue)
+                        {
+                            <span class="mvp-badge primary">@property.AverageRating.Value.ToString("0.0")/5</span>
+                        }
+                    </div>
+                    <p class="mvp-subtext property-address">@property.StreetAddress</p>
+                    <p class="mvp-text property-location">@property.City, @property.Country</p>
+                    <div class="mvp-tags">
+                        <span class="mvp-badge">Open property</span>
+                        @if (property.AverageScamSeverity.HasValue)
+                        {
+                            <span class="mvp-badge warn">Scam severity @property.AverageScamSeverity.Value.ToString("0.0")</span>
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</section>
+<button type="button" class="list-top-btn" data-scroll-top aria-label="Back to top">Top</button>

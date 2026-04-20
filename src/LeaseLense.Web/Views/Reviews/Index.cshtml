@@ -1,0 +1,126 @@
+@model LeaseLense.Web.Models.Reviews.ReviewListViewModel
+@{
+    ViewData["Title"] = "Reviews";
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>Anonymous Reviews</h1>
+        <p>Community-first feedback with privacy-safe identities and verifiable quality signals.</p>
+        <div class="mvp-toolbar">
+            <div class="quick-chips">
+                <span>Reviews</span>
+                <span>Filter + Sort</span>
+            </div>
+            <div class="d-flex gap-2">
+                <a class="mvp-btn" asp-action="Create">Write a Review</a>
+                <a class="mvp-btn ghost" asp-controller="Properties" asp-action="Index">Browse Properties</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="reviews-experience-column">
+        <form method="get" class="mvp-hero reviews-filter-panel" id="reviews-filter-form">
+            <div class="mvp-filters">
+                <input class="mvp-input" name="propertyQuery" value="@Model.PropertyQuery" placeholder="Search by property name or address" />
+                <input class="mvp-input" name="city" value="@Model.City" placeholder="Filter by city" />
+                <input class="mvp-input" type="number" step="1" min="0" name="minRent" value="@Model.MinRent" placeholder="Min rent" />
+                <input class="mvp-input" type="number" step="1" min="0" name="maxRent" value="@Model.MaxRent" placeholder="Max rent" />
+                <input class="mvp-input" type="number" step="0.1" min="0" max="5" name="minRating" value="@Model.MinRating" placeholder="Min rating" />
+                <select class="mvp-select" name="sortBy">
+                    <option value="newest" selected="@(Model.SortBy == "newest")">Newest</option>
+                    <option value="rating" selected="@(Model.SortBy == "rating")">Highest rating</option>
+                    <option value="rent" selected="@(Model.SortBy == "rent")">Lowest rent</option>
+                </select>
+                <button class="mvp-btn" type="submit">Apply</button>
+            </div>
+        </form>
+
+        <section class="reviews-results-panel" id="reviews-results-panel" aria-live="polite">
+            @if (TempData["ReviewSubmitSuccess"] is string successMessage)
+            {
+                <div class="mvp-empty">@successMessage</div>
+            }
+
+            @if (!Model.Reviews.Any())
+            {
+                <div class="mvp-empty">No reviews match your filters.</div>
+            }
+            else
+            {
+                <div class="mvp-grid" id="reviews-scroll-grid">
+                    @{
+                        var index = 0;
+                    }
+                    @foreach (var review in Model.Reviews)
+                    {
+                        <article class="mvp-card accent-indigo review-lazy-card" data-review-index="@index">
+                            <div class="mvp-card-head">
+                                <h2>@review.PropertyTitle</h2>
+                                <span class="mvp-badge primary">@review.AverageRating.ToString("0.0")/5</span>
+                            </div>
+                            <p class="mvp-subtext">@review.StreetAddress, @review.City</p>
+                            <p class="mvp-text">@review.ReviewText</p>
+                            <div class="mvp-tags">
+                                <span class="mvp-badge">@review.AnonymizedReviewer</span>
+                                <span class="mvp-badge">Rent @((review.MonthlyRent ?? 0).ToString("C0"))</span>
+                                @if (review.IsVerified)
+                                {
+                                    <span class="mvp-badge success">Verified</span>
+                                }
+                                <a class="card-action-link"
+                                   asp-controller="Properties"
+                                   asp-action="Details"
+                                   asp-route-id="@review.PropertyId">View property</a>
+                            </div>
+                        </article>
+                        index++;
+                    }
+                </div>
+            }
+        </section>
+    </div>
+@section Scripts {
+    <script>
+        (function () {
+            const grid = document.getElementById('reviews-scroll-grid');
+            if (!grid) return;
+
+            const cards = Array.from(grid.querySelectorAll('.review-lazy-card'));
+            if (cards.length === 0) return;
+
+            const initialCount = 9;
+            const batchCount = 6;
+            let visibleCount = initialCount;
+
+            const applyVisibility = () => {
+                cards.forEach((card, idx) => {
+                    card.classList.toggle('review-card-hidden', idx >= visibleCount);
+                });
+            };
+
+            applyVisibility();
+            if (cards.length <= initialCount) return;
+
+            const sentinel = document.createElement('div');
+            sentinel.className = 'reviews-sentinel';
+            grid.appendChild(sentinel);
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    visibleCount = Math.min(cards.length, visibleCount + batchCount);
+                    applyVisibility();
+                    if (visibleCount >= cards.length) {
+                        observer.disconnect();
+                        sentinel.remove();
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            observer.observe(sentinel);
+        })();
+    </script>
+}
+</section>
+<button type="button" class="list-top-btn" data-scroll-top aria-label="Back to top">Top</button>

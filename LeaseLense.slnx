@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LeaseLense.Application/LeaseLense.Application.csproj" />
+    <Project Path="src/LeaseLense.Domain/LeaseLense.Domain.csproj" />
+    <Project Path="src/LeaseLense.Infrastructure/LeaseLense.Infrastructure.csproj" />
+    <Project Path="src/LeaseLense.Web/LeaseLense.Web.csproj" />
+  </Folder>
+</Solution>
