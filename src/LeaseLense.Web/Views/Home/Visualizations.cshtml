@@ -2,8 +2,24 @@
     ViewData["Title"] = "Visualizations";
 }
 
-<div class="container py-4">
-    <h1>Visualizations</h1>
-    <p>This page is reserved for charts and analytics views from live LeaseLense data.</p>
-    <p><a asp-controller="Home" asp-action="Index">Back to Home</a></p>
-</div>
+<section class="page-frame reveal">
+    <div class="content-hero">
+        <h1>Visualizations</h1>
+        <p>
+            Interactive analytics for tenant behavior, scam trends, and property sentiment will be surfaced here
+            in a clean dashboard-ready experience.
+        </p>
+        <p><a asp-controller="Home" asp-action="Index" class="inline-link">Back to Home</a></p>
+    </div>
+
+    <div class="content-grid">
+        <article class="content-card">
+            <h2>Tenant sentiment maps</h2>
+            <p>Track neighborhood-level confidence, recurring issues, and quality-of-life trends over time.</p>
+        </article>
+        <article class="content-card">
+            <h2>Risk intelligence panels</h2>
+            <p>Visualize fraud severity patterns, lease red flags, and cost anomalies by property type and city.</p>
+        </article>
+    </div>
+</section>

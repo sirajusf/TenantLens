@@ -42,6 +42,10 @@
                     <p class="mvp-text">@report.Description</p>
                     <div class="mvp-tags">
                         <span class="mvp-badge">Reported @report.DateReported.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                        @if (!string.IsNullOrWhiteSpace(report.VerificationBadge))
+                        {
+                            <span class="mvp-badge success">@report.VerificationBadge</span>
+                        }
                         <a class="card-action-link"
                            asp-controller="Properties"
                            asp-action="Details"

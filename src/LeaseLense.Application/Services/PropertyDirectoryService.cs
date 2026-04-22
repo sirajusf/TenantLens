@@ -21,6 +21,7 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
         var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
+        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var reviewIdsByProperty = reviews
             .GroupBy(x => x.PropertyId)
@@ -96,6 +97,7 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
             .Where(x => x.PropertyId == propertyId)
             .OrderByDescending(x => x.DateReported)
             .ToList();
+        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var avgRatingByReview = ratings
             .GroupBy(x => x.ReviewId)
@@ -108,7 +110,12 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
                 ReviewerAlias = AnonymizedNameGenerator.Generate(x.ReviewId),
                 MonthlyRent = x.MonthlyRent,
                 AverageRating = avgRatingByReview.GetValueOrDefault(x.ReviewId, 0m),
-                IsVerified = string.Equals(x.VerificationStatus, "verified", StringComparison.OrdinalIgnoreCase),
+                VerificationBadge = verifications.Any(v =>
+                    v.RenterId == x.RenterId
+                    && v.PropertyId == x.PropertyId
+                    && string.Equals(v.Status, "verified_stay", StringComparison.OrdinalIgnoreCase))
+                    ? "Verified Stay"
+                    : null,
                 ReviewText = string.IsNullOrWhiteSpace(x.ReviewText) ? "No review details provided." : x.ReviewText!,
                 CreatedAt = x.CreatedAt
             })
@@ -121,6 +128,12 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
                 ScamType = DisplayTextFormatter.ToTitleLabel(x.ScamType),
                 SeverityScore = x.SeverityScore,
                 Description = string.IsNullOrWhiteSpace(x.Description) ? "No details provided." : x.Description!,
+                VerificationBadge = verifications.Any(v =>
+                    v.RenterId == x.RenterId
+                    && v.PropertyId == x.PropertyId
+                    && string.Equals(v.Status, "verified_stay", StringComparison.OrdinalIgnoreCase))
+                    ? "Verified Stay"
+                    : null,
                 DateReported = x.DateReported
             })
             .ToList();

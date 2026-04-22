@@ -12,6 +12,7 @@ public sealed class LoginViewModel
     [DataType(DataType.Password)]
     public string Password { get; init; } = string.Empty;
 
+    [Display(Name = "Keep me signed in on this device")]
     public bool RememberMe { get; init; }
     public string? ReturnUrl { get; init; }
 }

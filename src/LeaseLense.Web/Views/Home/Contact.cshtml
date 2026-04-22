@@ -2,8 +2,24 @@
     ViewData["Title"] = "Contact";
 }
 
-<div class="container py-4">
-    <h1>Contact</h1>
-    <p>For support, feature requests, or scam escalation, contact the LeaseLense team.</p>
-    <p><a asp-controller="Home" asp-action="Index">Back to Home</a></p>
-</div>
+<section class="page-frame reveal">
+    <div class="content-hero">
+        <h1>Contact</h1>
+        <p>
+            For support, feature requests, partnership opportunities, or scam escalation, reach out and
+            our team will respond as quickly as possible.
+        </p>
+        <p><a asp-controller="Home" asp-action="Index" class="inline-link">Back to Home</a></p>
+    </div>
+
+    <div class="content-grid">
+        <article class="content-card">
+            <h2>Support</h2>
+            <p>Need account or platform help? Use in-app feedback and include screenshots for faster triage.</p>
+        </article>
+        <article class="content-card">
+            <h2>Fraud escalation</h2>
+            <p>For urgent listing fraud concerns, submit a scam report first so moderation can prioritize review.</p>
+        </article>
+    </div>
+</section>

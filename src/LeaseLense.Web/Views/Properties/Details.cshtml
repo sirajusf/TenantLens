@@ -47,9 +47,9 @@
                         {
                             <span class="mvp-badge">Rent @review.MonthlyRent.Value.ToString("C0")</span>
                         }
-                        @if (review.IsVerified)
+                        @if (!string.IsNullOrWhiteSpace(review.VerificationBadge))
                         {
-                            <span class="mvp-badge success">Verified</span>
+                            <span class="mvp-badge success">@review.VerificationBadge</span>
                         }
                     </div>
                 </article>
@@ -76,6 +76,12 @@
                     </div>
                     <p class="mvp-subtext">@report.DateReported.ToLocalTime().ToString("MMM d, yyyy")</p>
                     <p class="mvp-text">@report.Description</p>
+                    @if (!string.IsNullOrWhiteSpace(report.VerificationBadge))
+                    {
+                        <div class="mvp-tags">
+                            <span class="mvp-badge success">@report.VerificationBadge</span>
+                        </div>
+                    }
                 </article>
             }
         </div>

@@ -1,0 +1,92 @@
+name: Azure App Service Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  WEB_PROJECT: "src/LeaseLense.Web/LeaseLense.Web.csproj"
+  PUBLISH_DIR: "publish_output"
+  ARTIFACT_NAME: "leaselense-web"
+  SLOT_NAME: "staging"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish ${{ env.WEB_PROJECT }} --configuration Release --no-build --output ${{ env.PUBLISH_DIR }}
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.PUBLISH_DIR }}
+
+  deploy-staging:
+    runs-on: windows-latest
+    needs: build
+    environment: staging
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.PUBLISH_DIR }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to staging slot
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          slot-name: ${{ env.SLOT_NAME }}
+          package: ${{ env.PUBLISH_DIR }}
+
+  swap-to-production:
+    runs-on: windows-latest
+    needs: deploy-staging
+    environment: production
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Swap staging slot to production
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp deployment slot swap \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --slot "${{ env.SLOT_NAME }}" \
+              --target-slot production
+
+      - name: Health check
+        shell: pwsh
+        run: |
+          $url = "https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/health/db"
+          $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+          if ($response.StatusCode -ne 200) {
+            throw "Health check failed with status $($response.StatusCode)"
+          }

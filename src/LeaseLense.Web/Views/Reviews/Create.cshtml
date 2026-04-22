@@ -7,7 +7,12 @@
     <div class="mvp-hero">
         <h1>Write a Rental Review</h1>
         <p>Share your honest experience to help other renters make safer choices.</p>
+        <p class="mvp-text">You can submit for any property. Verified Stay appears only when the review matches your verified residency.</p>
     </div>
+    @if (!Model.CanSubmit && !string.IsNullOrWhiteSpace(Model.RestrictionMessage))
+    {
+        <div class="mvp-error">@Model.RestrictionMessage</div>
+    }
 
     <form asp-action="Create" method="post" class="mvp-form">
         <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
@@ -29,6 +34,12 @@
                     <input asp-for="Form.PropertyNotListed" type="checkbox" />
                     Property not listed (add it now)
                 </label>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewCommunityName" class="mvp-label">Community name</label>
+                <input asp-for="Form.NewCommunityName" class="mvp-input" />
+                <span asp-validation-for="Form.NewCommunityName" class="mvp-error"></span>
             </div>
 
             <div class="mvp-field property-not-listed-field">
@@ -81,7 +92,7 @@
         </div>
 
         <div class="mvp-actions">
-            <button type="submit" class="mvp-btn">Submit Review</button>
+            <button type="submit" class="mvp-btn" disabled="@(!Model.CanSubmit)">Submit Review</button>
             <a class="mvp-btn ghost" asp-action="Index">Cancel</a>
         </div>
     </form>

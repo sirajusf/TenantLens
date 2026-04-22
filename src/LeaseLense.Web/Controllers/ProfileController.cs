@@ -1,0 +1,268 @@
+using System.Security.Cryptography;
+using Azure;
+using LeaseLense.Application.Abstractions;
+using LeaseLense.Application.Profile;
+using LeaseLense.Web.Models.Profile;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
+using LeaseLense.Web.Services;
+using System.Text;
+
+namespace LeaseLense.Web.Controllers;
+
+[Authorize]
+public sealed class ProfileController : Controller
+{
+    private readonly IProfileService _profileService;
+    private readonly UserManager<IdentityUser> _userManager;
+    private readonly IEmailVerificationSender _emailVerificationSender;
+    private readonly IDocumentExtractionService _documentExtractionService;
+
+    public ProfileController(
+        IProfileService profileService,
+        UserManager<IdentityUser> userManager,
+        IEmailVerificationSender emailVerificationSender,
+        IDocumentExtractionService documentExtractionService)
+    {
+        _profileService = profileService;
+        _userManager = userManager;
+        _emailVerificationSender = emailVerificationSender;
+        _documentExtractionService = documentExtractionService;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    {
+        var email = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Challenge();
+        }
+
+        var profile = await _profileService.GetProfileAsync(email, cancellationToken);
+        return View(ToPageModel(profile));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SendVerificationEmail(CancellationToken cancellationToken)
+    {
+        var email = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Challenge();
+        }
+
+        var user = await _userManager.FindByEmailAsync(email.Trim());
+        if (user is null)
+        {
+            TempData["ProfileError"] = "Account was not found for this email.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (user.EmailConfirmed)
+        {
+            TempData["ProfileSuccess"] = "Your email is already verified.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        var callbackUrl = Url.Action(
+            action: "VerifyEmail",
+            controller: "Account",
+            values: new { userId = user.Id, token = encodedToken },
+            protocol: Request.Scheme) ?? string.Empty;
+
+        try
+        {
+            await _emailVerificationSender.SendVerificationEmailAsync(user.Email ?? email, callbackUrl, cancellationToken);
+            TempData["ProfileSuccess"] = "Verification email sent. Check your inbox.";
+        }
+        catch (Exception)
+        {
+            TempData["ProfileError"] = "Could not send verification email. Check SMTP configuration and try again.";
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateAccount(ProfileAccountFormViewModel form, CancellationToken cancellationToken)
+    {
+        var email = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Challenge();
+        }
+
+        try
+        {
+            await _profileService.UpdateProfileAsync(new UpdateUserProfileDto
+            {
+                Email = email,
+                DisplayName = form.DisplayName,
+                StreetAddress = form.StreetAddress,
+                City = form.City,
+                StateOrRegion = form.StateOrRegion,
+                PostalCode = form.PostalCode,
+                Country = form.Country
+            }, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ProfileError"] = ex.Message;
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["ProfileSuccess"] = "Profile updated.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitVerification(ProfileResidencyVerificationFormViewModel form, IFormFile? proofDocument, CancellationToken cancellationToken)
+    {
+        var email = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Challenge();
+        }
+
+        if (proofDocument is null || proofDocument.Length == 0)
+        {
+            TempData["ProfileError"] = "Please upload a supporting document.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (proofDocument.Length > 10 * 1024 * 1024)
+        {
+            TempData["ProfileError"] = "File too large. Max size is 10 MB.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var allowed = new[] { "application/pdf", "image/png", "image/jpeg" };
+        if (!allowed.Contains(proofDocument.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            TempData["ProfileError"] = "Unsupported file type. Upload PDF, PNG, or JPEG.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        byte[] fileBytes;
+        string hashHex;
+        await using (var stream = proofDocument.OpenReadStream())
+        {
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory, cancellationToken);
+            fileBytes = memory.ToArray();
+            var hash = SHA256.HashData(fileBytes);
+            hashHex = Convert.ToHexString(hash);
+        }
+
+        try
+        {
+            var extraction = await _documentExtractionService.ExtractResidencyEvidenceAsync(
+                fileBytes,
+                form.DocumentType ?? string.Empty,
+                proofDocument.ContentType,
+                cancellationToken);
+            var result = await _profileService.SubmitResidencyVerificationAsync(new SubmitResidencyVerificationDto
+            {
+                Email = email,
+                CommunityName = form.CommunityName ?? string.Empty,
+                PropertyTitle = form.PropertyTitle ?? string.Empty,
+                DocumentType = form.DocumentType ?? string.Empty,
+                FileName = proofDocument.FileName ?? string.Empty,
+                ContentType = proofDocument.ContentType,
+                FileSizeBytes = proofDocument.Length,
+                FileHashSha256 = hashHex,
+                ExtractedName = extraction.ExtractedName ?? string.Empty,
+                ExtractedAddress = extraction.ExtractedAddress ?? string.Empty,
+                ExtractedFromDate = extraction.ExtractedFromDate,
+                ExtractedToDate = extraction.ExtractedToDate,
+                ParserConfidence = extraction.ParserConfidence
+            }, cancellationToken);
+
+            if (string.Equals(result.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(result.Status, "rejected", StringComparison.OrdinalIgnoreCase))
+            {
+                await _emailVerificationSender.SendResidencyDecisionEmailAsync(email, result.Status, result.Reason, cancellationToken);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ProfileError"] = ex.Message;
+            return RedirectToAction(nameof(Index));
+        }
+        catch (RequestFailedException ex)
+        {
+            TempData["ProfileError"] = ex.Status == 404
+                ? "Azure Document Intelligence returned 404. Verify this endpoint belongs to a Document Intelligence resource in the same region as the API key."
+                : "Document analysis (Azure) failed. Confirm endpoint, API key, model id, and region in appsettings, then try again.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception)
+        {
+            TempData["ProfileError"] =
+                "Verification could not be completed. If you saw a success message before, check your email; otherwise try again.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["ProfileSuccess"] = "Verification submitted. Status will update after checks.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static ProfilePageViewModel ToPageModel(UserProfileDto profile)
+    {
+        return new ProfilePageViewModel
+        {
+            Account = new ProfileAccountFormViewModel
+            {
+                DisplayName = profile.DisplayName,
+                Email = profile.Email,
+                EmailVerified = profile.EmailVerified,
+                NameLocked = profile.NameLocked,
+                HasVerifiedStay = profile.HasVerifiedStay,
+                StreetAddress = profile.StreetAddress,
+                City = profile.City,
+                StateOrRegion = profile.StateOrRegion,
+                PostalCode = profile.PostalCode,
+                Country = profile.Country
+            },
+            VerificationForm = new ProfileResidencyVerificationFormViewModel
+            {
+                PropertyAddressSummary = BuildAddressSummary(profile),
+                CommunityName = string.Empty
+            },
+            VerificationStatuses = profile.Verifications
+                .Select(x => new ProfileVerificationStatusViewModel
+                {
+                    PropertyTitle = x.PropertyTitle,
+                    Status = x.Status,
+                    ConfidenceScore = x.ConfidenceScore,
+                    ReviewReason = x.ReviewReason,
+                    UpdatedAt = x.UpdatedAt
+                })
+                .ToList()
+        };
+    }
+
+    private static string BuildAddressSummary(UserProfileDto profile)
+    {
+        var parts = new[]
+        {
+            profile.StreetAddress,
+            profile.City,
+            profile.StateOrRegion,
+            profile.PostalCode,
+            profile.Country
+        }
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Select(x => x!.Trim());
+
+        return string.Join(", ", parts);
+    }
+}

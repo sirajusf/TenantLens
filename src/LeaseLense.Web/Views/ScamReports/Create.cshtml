@@ -7,7 +7,12 @@
     <div class="mvp-hero">
         <h1>Submit Scam/Fraud Report</h1>
         <p>Help the renter community by reporting suspicious listings or payment behavior.</p>
+        <p class="mvp-text">You can submit for any property. Verified Stay appears only when the report matches your verified residency.</p>
     </div>
+    @if (!Model.CanSubmit && !string.IsNullOrWhiteSpace(Model.RestrictionMessage))
+    {
+        <div class="mvp-error">@Model.RestrictionMessage</div>
+    }
 
     <form asp-action="Create" method="post" class="mvp-form">
         <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
@@ -29,6 +34,12 @@
                     <input asp-for="Form.PropertyNotListed" type="checkbox" />
                     Property not listed (add it now)
                 </label>
+            </div>
+
+            <div class="mvp-field property-not-listed-field">
+                <label asp-for="Form.NewCommunityName" class="mvp-label">Community name</label>
+                <input asp-for="Form.NewCommunityName" class="mvp-input" />
+                <span asp-validation-for="Form.NewCommunityName" class="mvp-error"></span>
             </div>
 
             <div class="mvp-field property-not-listed-field">
@@ -55,6 +66,7 @@
                 <span asp-validation-for="Form.NewPropertyCountry" class="mvp-error"></span>
             </div>
 
+
             <div class="mvp-field">
                 <label asp-for="Form.ScamType" class="mvp-label">Scam type</label>
                 <input asp-for="Form.ScamType" class="mvp-input" />
@@ -74,7 +86,7 @@
             </div>
         </div>
         <div class="mvp-actions">
-            <button type="submit" class="mvp-btn danger">Submit Report</button>
+            <button type="submit" class="mvp-btn danger" disabled="@(!Model.CanSubmit)">Submit Report</button>
             <a class="mvp-btn ghost" asp-action="Index">Cancel</a>
         </div>
     </form>

@@ -13,12 +13,17 @@ public sealed class UserAccountService : IUserAccountService
         _dbContext = dbContext;
     }
 
-    public async Task<Guid> EnsureRenterForEmailAsync(string email, string? displayName, CancellationToken cancellationToken = default)
+    public async Task<Guid> EnsureRenterForEmailAsync(string email, string? displayName, bool emailVerified, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim();
         var existing = await _dbContext.GetRenterByEmailAsync(normalizedEmail, cancellationToken);
         if (existing is not null)
         {
+            if (emailVerified && !existing.EmailVerified)
+            {
+                existing.EmailVerified = true;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
             return existing.RenterId;
         }
 
@@ -27,7 +32,8 @@ public sealed class UserAccountService : IUserAccountService
             RenterId = Guid.NewGuid(),
             Email = normalizedEmail,
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
-            IsVerified = true,
+            EmailVerified = emailVerified,
+            IsVerified = false,
             CreatedAt = DateTime.UtcNow
         };
 

@@ -1,6 +1,7 @@
 using LeaseLense.Application;
 using LeaseLense.Infrastructure;
 using LeaseLense.Infrastructure.Data;
+using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.Configure<GmailSmtpOptions>(builder.Configuration.GetSection(GmailSmtpOptions.SectionName));
+builder.Services.Configure<AzureDocumentIntelligenceOptions>(builder.Configuration.GetSection(AzureDocumentIntelligenceOptions.SectionName));
+builder.Services.AddScoped<IEmailVerificationSender, GmailEmailVerificationSender>();
+builder.Services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>(options =>
     {
@@ -72,8 +77,11 @@ app.MapGet("/health/db", async (LeaseLensDbContext dbContext, CancellationToken 
     }
 });
 
-using (var scope = app.Services.CreateScope())
+var shouldEnsureIdentitySchema = builder.Configuration.GetValue<bool?>("IdentitySchema:AutoEnsureCreated")
+    ?? app.Environment.IsDevelopment();
+if (shouldEnsureIdentitySchema)
 {
+    using var scope = app.Services.CreateScope();
     var authDbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
     await IdentitySchemaInitializer.EnsureCreatedAsync(authDbContext);
 }

@@ -64,9 +64,9 @@
                             <div class="mvp-tags">
                                 <span class="mvp-badge">@review.AnonymizedReviewer</span>
                                 <span class="mvp-badge">Rent @((review.MonthlyRent ?? 0).ToString("C0"))</span>
-                                @if (review.IsVerified)
+                                @if (!string.IsNullOrWhiteSpace(review.VerificationBadge))
                                 {
-                                    <span class="mvp-badge success">Verified</span>
+                                    <span class="mvp-badge success">@review.VerificationBadge</span>
                                 }
                                 <a class="card-action-link"
                                    asp-controller="Properties"

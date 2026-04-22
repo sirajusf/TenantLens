@@ -3,41 +3,67 @@
     ViewData["Title"] = "Create Account";
 }
 
-<section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>Create Your LeaseLense Account</h1>
-        <p>Sign up once to post reviews, report scams, and track safer property decisions.</p>
-    </div>
+<section class="login-page reveal">
+    <div class="register-page">
+        @if (TempData["RegistrationSuccess"] is string successMessage)
+        {
+            <div class="mvp-empty" style="margin-bottom:0.85rem;">@successMessage</div>
+        }
+        @if (TempData["RegistrationError"] is string errorMessage)
+        {
+            <div class="mvp-error" style="margin-bottom:0.85rem;">@errorMessage</div>
+        }
+        <div class="register-grid">
+            <aside class="login-aside" aria-labelledby="register-title">
+                <p class="login-eyebrow">TenantLens · New account</p>
+                <h1 id="register-title" class="login-headline">Create your account and unlock safer rental decisions</h1>
+                <p class="login-lead">
+                    Build your profile once to submit reviews, report scams, and use guided tools that turn rental
+                    uncertainty into clear action.
+                </p>
+                <ul class="login-points">
+                    <li><span class="login-point-icon" aria-hidden="true"></span><span>Post structured feedback without exposing private details publicly.</span></li>
+                    <li><span class="login-point-icon" aria-hidden="true"></span><span>Get access to personalized renter-fit and risk insights.</span></li>
+                    <li><span class="login-point-icon" aria-hidden="true"></span><span>Contribute signals that help the next renter avoid costly mistakes.</span></li>
+                </ul>
+            </aside>
 
-    <form asp-action="Register" method="post" class="mvp-form">
-        <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
-        <div class="mvp-form-grid">
-            <div class="mvp-field full">
-                <label asp-for="Email" class="mvp-label">Email</label>
-                <input asp-for="Email" class="mvp-input" />
-                <span asp-validation-for="Email" class="mvp-error"></span>
-            </div>
-            <div class="mvp-field full">
-                <label asp-for="DisplayName" class="mvp-label">Display name (optional)</label>
-                <input asp-for="DisplayName" class="mvp-input" />
-                <span asp-validation-for="DisplayName" class="mvp-error"></span>
-            </div>
-            <div class="mvp-field">
-                <label asp-for="Password" class="mvp-label">Password</label>
-                <input asp-for="Password" class="mvp-input" />
-                <span asp-validation-for="Password" class="mvp-error"></span>
-            </div>
-            <div class="mvp-field">
-                <label asp-for="ConfirmPassword" class="mvp-label">Confirm password</label>
-                <input asp-for="ConfirmPassword" class="mvp-input" />
-                <span asp-validation-for="ConfirmPassword" class="mvp-error"></span>
+            <div class="register-card">
+                <h2>Create Account</h2>
+                <p>Use your email and password to start your secure TenantLens session.</p>
+
+                <form asp-action="Register" method="post" class="mvp-form">
+                    <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
+                    <div class="mvp-form-grid">
+                        <div class="mvp-field full">
+                            <label asp-for="Email" class="mvp-label">Email</label>
+                            <input asp-for="Email" class="mvp-input" autocomplete="email" />
+                            <span asp-validation-for="Email" class="mvp-error"></span>
+                        </div>
+                        <div class="mvp-field full">
+                            <label asp-for="DisplayName" class="mvp-label">Full name</label>
+                            <input asp-for="DisplayName" class="mvp-input" />
+                            <span asp-validation-for="DisplayName" class="mvp-error"></span>
+                        </div>
+                        <div class="mvp-field">
+                            <label asp-for="Password" class="mvp-label">Password</label>
+                            <input asp-for="Password" class="mvp-input" autocomplete="new-password" />
+                            <span asp-validation-for="Password" class="mvp-error"></span>
+                        </div>
+                        <div class="mvp-field">
+                            <label asp-for="ConfirmPassword" class="mvp-label">Confirm password</label>
+                            <input asp-for="ConfirmPassword" class="mvp-input" autocomplete="new-password" />
+                            <span asp-validation-for="ConfirmPassword" class="mvp-error"></span>
+                        </div>
+                    </div>
+                    <div class="register-actions">
+                        <button type="submit" class="mvp-btn">Create Account</button>
+                        <a class="mvp-btn ghost" asp-action="Login">Already have account</a>
+                    </div>
+                </form>
             </div>
         </div>
-        <div class="mvp-actions">
-            <button type="submit" class="mvp-btn">Create Account</button>
-            <a class="mvp-btn ghost" asp-action="Login">Already have account</a>
-        </div>
-    </form>
+    </div>
 </section>
 
 @section Scripts {

@@ -3,6 +3,7 @@ namespace LeaseLense.Application.ScamReports;
 public sealed class CreateScamReportDto
 {
     public Guid? PropertyId { get; init; }
+    public string? NewCommunityName { get; init; }
     public string? NewPropertyTitle { get; init; }
     public string? NewPropertyStreetAddress { get; init; }
     public string? NewPropertyCity { get; init; }

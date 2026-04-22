@@ -185,7 +185,10 @@
               <p class="location">@review.City</p>
               <p class="review-quote">@review.ReviewText</p>
               <div class="tags">
-                <span>Verified Review</span>
+                @if (!string.IsNullOrWhiteSpace(review.VerificationBadge))
+                {
+                  <span>@review.VerificationBadge</span>
+                }
                 <span>@((review.MonthlyRent ?? 0).ToString("C0"))/mo</span>
                 <span>Community Signal</span>
               </div>
@@ -211,6 +214,12 @@
               </div>
               <p class="location">@report.City · @report.ScamType</p>
               <p class="fraud-quote">@report.Description</p>
+              @if (!string.IsNullOrWhiteSpace(report.VerificationBadge))
+              {
+                <div class="tags">
+                  <span>@report.VerificationBadge</span>
+                </div>
+              }
             </article>
           }
         </div>

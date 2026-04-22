@@ -69,7 +69,7 @@ public sealed class PropertiesController : Controller
                 ReviewerAlias = x.ReviewerAlias,
                 MonthlyRent = x.MonthlyRent,
                 AverageRating = x.AverageRating,
-                IsVerified = x.IsVerified,
+                VerificationBadge = x.VerificationBadge,
                 ReviewText = x.ReviewText,
                 CreatedAt = x.CreatedAt
             }).ToList(),
@@ -78,6 +78,7 @@ public sealed class PropertiesController : Controller
                 ScamType = x.ScamType,
                 SeverityScore = x.SeverityScore,
                 Description = x.Description,
+                VerificationBadge = x.VerificationBadge,
                 DateReported = x.DateReported
             }).ToList()
         };

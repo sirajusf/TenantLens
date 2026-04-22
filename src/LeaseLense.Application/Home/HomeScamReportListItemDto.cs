@@ -8,4 +8,5 @@ public sealed class HomeScamReportListItemDto
     public string ScamType { get; init; } = string.Empty;
     public decimal? SeverityScore { get; init; }
     public string Description { get; init; } = string.Empty;
+    public string? VerificationBadge { get; init; }
 }

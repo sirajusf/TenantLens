@@ -3,6 +3,7 @@ namespace LeaseLense.Domain.Entities;
 public sealed class Property
 {
     public Guid PropertyId { get; set; }
+    public Guid? CommunityId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string StreetAddress { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;

@@ -21,6 +21,7 @@ public sealed class HomePageReadService : IHomePageReadService
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var reviewRatings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
         var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
+        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var propertyLookup = properties.ToDictionary(x => x.PropertyId, x => x);
         var reviewAverageRatings = reviewRatings
@@ -49,6 +50,10 @@ public sealed class HomePageReadService : IHomePageReadService
             .Select(x =>
             {
                 propertyLookup.TryGetValue(x.PropertyId, out var property);
+                var hasVerifiedStay = verifications.Any(v =>
+                    v.RenterId == x.RenterId
+                    && v.PropertyId == x.PropertyId
+                    && string.Equals(v.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
                 return new HomeReviewListItemDto
                 {
                     ReviewId = x.ReviewId,
@@ -56,6 +61,7 @@ public sealed class HomePageReadService : IHomePageReadService
                     City = property?.City ?? "Unknown City",
                     AverageRating = reviewAverageRatings.GetValueOrDefault(x.ReviewId),
                     MonthlyRent = x.MonthlyRent,
+                    VerificationBadge = hasVerifiedStay ? "Verified Stay" : null,
                     ReviewText = string.IsNullOrWhiteSpace(x.ReviewText)
                         ? "No review details provided."
                         : x.ReviewText
@@ -69,6 +75,10 @@ public sealed class HomePageReadService : IHomePageReadService
             .Select(x =>
             {
                 propertyLookup.TryGetValue(x.PropertyId, out var property);
+                var hasVerifiedStay = verifications.Any(v =>
+                    v.RenterId == x.RenterId
+                    && v.PropertyId == x.PropertyId
+                    && string.Equals(v.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
                 return new HomeScamReportListItemDto
                 {
                     ScamReportId = x.ScamReportId,
@@ -76,6 +86,7 @@ public sealed class HomePageReadService : IHomePageReadService
                     City = property?.City ?? "Unknown City",
                     ScamType = DisplayTextFormatter.ToTitleLabel(x.ScamType),
                     SeverityScore = x.SeverityScore,
+                    VerificationBadge = hasVerifiedStay ? "Verified Stay" : null,
                     Description = string.IsNullOrWhiteSpace(x.Description)
                         ? "No scam details provided."
                         : x.Description

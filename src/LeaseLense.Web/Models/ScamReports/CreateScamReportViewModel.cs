@@ -9,6 +9,9 @@ public sealed class CreateScamReportViewModel : IValidatableObject
     public bool PropertyNotListed { get; init; }
 
     [StringLength(510)]
+    public string? NewCommunityName { get; init; }
+
+    [StringLength(510)]
     public string? NewPropertyTitle { get; init; }
 
     [StringLength(510)]
@@ -39,6 +42,11 @@ public sealed class CreateScamReportViewModel : IValidatableObject
 
         if (PropertyNotListed)
         {
+            if (string.IsNullOrWhiteSpace(NewCommunityName))
+            {
+                yield return new ValidationResult("Community name is required.", [nameof(NewCommunityName)]);
+            }
+
             if (string.IsNullOrWhiteSpace(NewPropertyTitle))
             {
                 yield return new ValidationResult("Property title is required.", [nameof(NewPropertyTitle)]);
