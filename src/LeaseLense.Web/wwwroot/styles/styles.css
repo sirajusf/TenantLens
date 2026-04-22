@@ -102,6 +102,62 @@ main > section {
   gap: 0.85rem;
 }
 
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.user-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 210px;
+  padding: 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface);
+  box-shadow: 0 10px 22px rgba(24, 58, 90, 0.22);
+  display: grid;
+  gap: 0.5rem;
+  z-index: 40;
+}
+
+.user-menu-panel > a {
+  color: #2b5e7d;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.42rem 0.55rem;
+  border-radius: 8px;
+}
+
+.user-menu-panel > a:hover {
+  background: rgba(103, 141, 232, 0.14);
+}
+
+.user-menu-panel .theme-toggle {
+  justify-content: space-between;
+}
+
+.user-menu-signout .mvp-btn {
+  width: 100%;
+}
+
 .main-nav {
   display: flex;
   align-items: center;
@@ -318,6 +374,24 @@ html[data-theme="dark"] .main-nav a {
 html[data-theme="dark"] .main-nav a:hover {
   background: rgba(109, 142, 196, 0.4);
   color: #ffffff;
+}
+
+html[data-theme="dark"] .user-menu-trigger {
+  background: rgba(43, 61, 90, 0.68);
+  border-color: rgba(146, 176, 215, 0.48);
+}
+
+html[data-theme="dark"] .user-menu-panel {
+  background: #1d2c45;
+  border-color: rgba(146, 176, 215, 0.48);
+}
+
+html[data-theme="dark"] .user-menu-panel > a {
+  color: #e8f2ff;
+}
+
+html[data-theme="dark"] .user-menu-panel > a:hover {
+  background: rgba(109, 142, 196, 0.4);
 }
 
 html[data-theme="dark"] .theme-toggle {

@@ -10,4 +10,5 @@ public sealed class ScamReportListItemDto
     public decimal? SeverityScore { get; init; }
     public DateTime DateReported { get; init; }
     public string Description { get; init; } = string.Empty;
+    public string? VerificationBadge { get; init; }
 }

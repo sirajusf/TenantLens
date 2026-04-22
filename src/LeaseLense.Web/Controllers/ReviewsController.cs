@@ -53,7 +53,7 @@ public sealed class ReviewsController : Controller
                 City = x.City,
                 MonthlyRent = x.MonthlyRent,
                 AverageRating = x.AverageRating,
-                IsVerified = x.IsVerified,
+                VerificationBadge = x.VerificationBadge,
                 AnonymizedReviewer = x.AnonymizedReviewer,
                 ReviewText = x.ReviewText
             }).ToList()
@@ -66,7 +66,12 @@ public sealed class ReviewsController : Controller
     [Authorize]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        var metadata = await _reviewMvpService.GetCreateMetadataAsync(cancellationToken);
+        var reporterEmail = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(reporterEmail))
+        {
+            return Challenge();
+        }
+        var metadata = await _reviewMvpService.GetCreateMetadataAsync(reporterEmail, cancellationToken);
         return View(ToCreatePageModel(new CreateReviewViewModel(), metadata));
     }
 
@@ -75,21 +80,21 @@ public sealed class ReviewsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CreateReviewViewModel form, CancellationToken cancellationToken)
     {
-        var metadata = await _reviewMvpService.GetCreateMetadataAsync(cancellationToken);
-        if (!ModelState.IsValid)
-        {
-            return View(ToCreatePageModel(form, metadata));
-        }
-
         var reporterEmail = User.Identity?.Name;
         if (string.IsNullOrWhiteSpace(reporterEmail))
         {
             return Challenge();
         }
+        var metadata = await _reviewMvpService.GetCreateMetadataAsync(reporterEmail, cancellationToken);
+        if (!ModelState.IsValid)
+        {
+            return View(ToCreatePageModel(form, metadata));
+        }
 
         var request = new CreateReviewDto
         {
             PropertyId = form.PropertyNotListed ? null : form.PropertyId,
+            NewCommunityName = form.NewCommunityName,
             NewPropertyTitle = form.NewPropertyTitle,
             NewPropertyStreetAddress = form.NewPropertyStreetAddress,
             NewPropertyCity = form.NewPropertyCity,
@@ -98,11 +103,18 @@ public sealed class ReviewsController : Controller
             UnitType = form.UnitType,
             ReviewText = form.ReviewText,
             OverallRating = form.OverallRating,
-            ReporterEmail = reporterEmail,
-            VerificationStatus = "verified"
+            ReporterEmail = reporterEmail
         };
 
-        await _reviewMvpService.SubmitReviewAsync(request, cancellationToken);
+        try
+        {
+            await _reviewMvpService.SubmitReviewAsync(request, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(ToCreatePageModel(form, metadata));
+        }
         TempData["ReviewSubmitSuccess"] = "Review submitted successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -112,6 +124,8 @@ public sealed class ReviewsController : Controller
         return new ReviewCreatePageViewModel
         {
             Form = form,
+            CanSubmit = metadata.CanSubmit,
+            RestrictionMessage = metadata.RestrictionMessage,
             Properties = metadata.Properties
                 .Select(x => new ReviewPropertyOptionViewModel
                 {

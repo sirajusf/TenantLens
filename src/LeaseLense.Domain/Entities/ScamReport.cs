@@ -7,6 +7,7 @@ public sealed class ScamReport
     public Guid RenterId { get; set; }
     public string ScamType { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string VerificationStatus { get; set; } = string.Empty;
     public decimal? SeverityScore { get; set; }
     public DateTime DateReported { get; set; }
     public DateTime CreatedAt { get; set; }

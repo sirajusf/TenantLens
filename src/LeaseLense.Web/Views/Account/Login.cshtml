@@ -3,34 +3,119 @@
     ViewData["Title"] = "Sign In";
 }
 
-<section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>Welcome Back</h1>
-        <p>Sign in to submit reviews and scam reports with your account.</p>
-    </div>
+<section class="login-page reveal">
+    <div class="login-shell">
+        <div class="login-grid">
+            <aside class="login-aside" aria-labelledby="login-aside-title">
+                <p class="login-eyebrow">TenantLens · Secure access</p>
+                <h1 id="login-aside-title" class="login-headline">Sign in and pick up where renters trust the data</h1>
+                <p class="login-lead">
+                    Your account ties together reviews, scam reports, and property context—without exposing unnecessary personal detail on the public record.
+                </p>
+                <ul class="login-points">
+                    <li>
+                        <span class="login-point-icon" aria-hidden="true"></span>
+                        <span>Anonymous-by-design reviews with consistent, structured signals.</span>
+                    </li>
+                    <li>
+                        <span class="login-point-icon" aria-hidden="true"></span>
+                        <span>Fraud reporting that helps the next renter avoid the same trap.</span>
+                    </li>
+                    <li>
+                        <span class="login-point-icon" aria-hidden="true"></span>
+                        <span>Passwords are never sent by email and never appear in the address bar.</span>
+                    </li>
+                </ul>
+                <p class="login-footnote">
+                    Prefer to browse first?
+                    <a asp-controller="Properties" asp-action="Index" class="login-inline-link">Explore the property directory</a>
+                    without signing in.
+                </p>
+            </aside>
 
-    <form asp-action="Login" method="post" class="mvp-form">
-        <input asp-for="ReturnUrl" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="mvp-error"></div>
-        <div class="mvp-form-grid">
-            <div class="mvp-field full">
-                <label asp-for="Email" class="mvp-label">Email</label>
-                <input asp-for="Email" class="mvp-input" />
-                <span asp-validation-for="Email" class="mvp-error"></span>
-            </div>
-            <div class="mvp-field full">
-                <label asp-for="Password" class="mvp-label">Password</label>
-                <input asp-for="Password" class="mvp-input" />
-                <span asp-validation-for="Password" class="mvp-error"></span>
+            <div class="login-card-wrap">
+                <div class="login-card">
+                    <header class="login-card-header">
+                        <h2 class="login-card-title">Welcome back</h2>
+                        <p class="login-card-sub">Use your email and password—two fields, one secure session.</p>
+                    </header>
+
+                    <form asp-action="Login" method="post" class="login-form">
+                        <input asp-for="ReturnUrl" type="hidden" />
+                        <div asp-validation-summary="ModelOnly" class="mvp-error login-error-banner" role="alert"></div>
+
+                        <div class="mvp-field full">
+                            <label asp-for="Email" class="mvp-label">Work or personal email</label>
+                            <input asp-for="Email"
+                                   class="mvp-input"
+                                   autocomplete="username"
+                                   autocapitalize="none"
+                                   spellcheck="false"
+                                   placeholder="you@example.com"
+                                   autofocus />
+                            <span asp-validation-for="Email" class="mvp-error"></span>
+                        </div>
+
+                        <div class="mvp-field full">
+                            <label asp-for="Password" class="mvp-label">Password</label>
+                            <div class="login-password-field">
+                                <input asp-for="Password"
+                                       id="login-password-input"
+                                       class="mvp-input"
+                                       autocomplete="current-password"
+                                       placeholder="Enter your password" />
+                                <button type="button"
+                                        class="login-password-toggle"
+                                        id="login-password-toggle"
+                                        aria-controls="login-password-input"
+                                        aria-pressed="false"
+                                        data-label-show="Show"
+                                        data-label-hide="Hide">
+                                    Show
+                                </button>
+                            </div>
+                            <span asp-validation-for="Password" class="mvp-error"></span>
+                        </div>
+
+                        <label class="login-remember">
+                            <input asp-for="RememberMe" />
+                            <span>@Html.DisplayNameFor(m => m.RememberMe)</span>
+                        </label>
+
+                        <div class="mvp-actions login-form-actions">
+                            <button type="submit" class="mvp-btn login-btn-submit">Sign in</button>
+                        </div>
+
+                        <div class="login-secondary-actions">
+                            <a asp-controller="Properties" asp-action="Index" class="login-text-link">Continue browsing</a>
+                            <a asp-action="Register" class="login-link-register">Need an account? <strong>Register</strong></a>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-        <div class="mvp-actions">
-            <button type="submit" class="mvp-btn">Sign In</button>
-            <a class="mvp-btn ghost" asp-action="Register">Create Account</a>
-        </div>
-    </form>
+    </div>
 </section>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const input = document.getElementById("login-password-input");
+            const btn = document.getElementById("login-password-toggle");
+            if (!input || !btn) return;
+
+            const showLabel = btn.dataset.labelShow || "Show";
+            const hideLabel = btn.dataset.labelHide || "Hide";
+
+            btn.addEventListener("click", () => {
+                const isHidden = input.type === "password";
+                input.type = isHidden ? "text" : "password";
+                btn.textContent = isHidden ? hideLabel : showLabel;
+                btn.setAttribute("aria-pressed", isHidden ? "true" : "false");
+                btn.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
+            });
+            btn.setAttribute("aria-label", "Show password");
+        })();
+    </script>
 }

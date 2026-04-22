@@ -8,8 +8,9 @@ public sealed class RegisterViewModel
     [EmailAddress]
     public string Email { get; init; } = string.Empty;
 
+    [Required]
     [StringLength(510)]
-    public string? DisplayName { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
 
     [Required]
     [DataType(DataType.Password)]

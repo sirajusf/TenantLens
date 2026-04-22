@@ -12,6 +12,7 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
     }
 
     public DbSet<Renter> Renters => Set<Renter>();
+    public DbSet<Community> Communities => Set<Community>();
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<ReviewRating> ReviewRatings => Set<ReviewRating>();
@@ -23,6 +24,13 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
     public DbSet<LeaseClauseFlag> LeaseClauseFlags => Set<LeaseClauseFlag>();
     public DbSet<NegotiationSession> NegotiationSessions => Set<NegotiationSession>();
     public DbSet<NegotiationSuggestion> NegotiationSuggestions => Set<NegotiationSuggestion>();
+    public DbSet<RenterPropertyVerification> RenterPropertyVerifications => Set<RenterPropertyVerification>();
+    public DbSet<ResidencyVerificationDocument> ResidencyVerificationDocuments => Set<ResidencyVerificationDocument>();
+
+    public Task<List<Community>> GetCommunitiesAsync(CancellationToken cancellationToken = default)
+    {
+        return Communities.AsNoTracking().ToListAsync(cancellationToken);
+    }
 
     public Task<List<Property>> GetPropertiesAsync(CancellationToken cancellationToken = default)
     {
@@ -37,6 +45,11 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
     public Task<Renter?> GetRenterByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         return Renters.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
+    }
+
+    public Task<Renter?> GetRenterByIdAsync(Guid renterId, CancellationToken cancellationToken = default)
+    {
+        return Renters.FirstOrDefaultAsync(x => x.RenterId == renterId, cancellationToken);
     }
 
     public Task<List<Review>> GetReviewsAsync(CancellationToken cancellationToken = default)
@@ -54,9 +67,24 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
         return ScamReports.AsNoTracking().ToListAsync(cancellationToken);
     }
 
+    public Task<List<RenterPropertyVerification>> GetRenterPropertyVerificationsAsync(CancellationToken cancellationToken = default)
+    {
+        return RenterPropertyVerifications.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
+    public Task<List<ResidencyVerificationDocument>> GetResidencyVerificationDocumentsAsync(CancellationToken cancellationToken = default)
+    {
+        return ResidencyVerificationDocuments.AsNoTracking().ToListAsync(cancellationToken);
+    }
+
     public Task AddPropertyAsync(Property property, CancellationToken cancellationToken = default)
     {
         return Properties.AddAsync(property, cancellationToken).AsTask();
+    }
+
+    public Task AddCommunityAsync(Community community, CancellationToken cancellationToken = default)
+    {
+        return Communities.AddAsync(community, cancellationToken).AsTask();
     }
 
     public Task AddRenterAsync(Renter renter, CancellationToken cancellationToken = default)
@@ -84,6 +112,16 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
         return ScamReports.AddAsync(scamReport, cancellationToken).AsTask();
     }
 
+    public Task AddRenterPropertyVerificationAsync(RenterPropertyVerification verification, CancellationToken cancellationToken = default)
+    {
+        return RenterPropertyVerifications.AddAsync(verification, cancellationToken).AsTask();
+    }
+
+    public Task AddResidencyVerificationDocumentAsync(ResidencyVerificationDocument document, CancellationToken cancellationToken = default)
+    {
+        return ResidencyVerificationDocuments.AddAsync(document, cancellationToken).AsTask();
+    }
+
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return base.SaveChangesAsync(cancellationToken);
@@ -98,6 +136,12 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
             entity.Property(x => x.RenterId).HasColumnName("renter_id");
             entity.Property(x => x.Email).HasColumnName("email").HasMaxLength(510);
             entity.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(510);
+            entity.Property(x => x.StreetAddress).HasColumnName("street_address").HasMaxLength(510);
+            entity.Property(x => x.City).HasColumnName("city").HasMaxLength(200);
+            entity.Property(x => x.StateOrRegion).HasColumnName("state_or_region").HasMaxLength(200);
+            entity.Property(x => x.PostalCode).HasColumnName("postal_code").HasMaxLength(40);
+            entity.Property(x => x.Country).HasColumnName("country").HasMaxLength(200);
+            entity.Property(x => x.EmailVerified).HasColumnName("email_verified");
             entity.Property(x => x.IsVerified).HasColumnName("is_verified");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
         });
@@ -107,6 +151,7 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
             entity.ToTable("properties", "dbo");
             entity.HasKey(x => x.PropertyId);
             entity.Property(x => x.PropertyId).HasColumnName("property_id");
+            entity.Property(x => x.CommunityId).HasColumnName("community_id");
             entity.Property(x => x.Title).HasColumnName("title").HasMaxLength(510);
             entity.Property(x => x.StreetAddress).HasColumnName("street_address").HasMaxLength(510);
             entity.Property(x => x.City).HasColumnName("city").HasMaxLength(200);
@@ -125,6 +170,23 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
                 .WithMany()
                 .HasForeignKey(x => x.CreatedByRenterId)
                 .HasConstraintName("FK_properties_created_by_renter");
+
+            entity.HasOne<Community>()
+                .WithMany()
+                .HasForeignKey(x => x.CommunityId)
+                .HasConstraintName("FK_properties_community");
+        });
+
+        modelBuilder.Entity<Community>(entity =>
+        {
+            entity.ToTable("communities", "dbo");
+            entity.HasKey(x => x.CommunityId);
+            entity.Property(x => x.CommunityId).HasColumnName("community_id");
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(510);
+            entity.Property(x => x.City).HasColumnName("city").HasMaxLength(200);
+            entity.Property(x => x.StateOrRegion).HasColumnName("state_or_region").HasMaxLength(200);
+            entity.Property(x => x.Country).HasColumnName("country").HasMaxLength(200);
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
         });
 
         modelBuilder.Entity<Review>(entity =>
@@ -192,6 +254,7 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
             entity.Property(x => x.RenterId).HasColumnName("renter_id");
             entity.Property(x => x.ScamType).HasColumnName("scam_type").HasMaxLength(200);
             entity.Property(x => x.Description).HasColumnName("description");
+            entity.Property(x => x.VerificationStatus).HasColumnName("verification_status").HasMaxLength(100);
             entity.Property(x => x.SeverityScore).HasColumnName("severity_score").HasPrecision(4, 2);
             entity.Property(x => x.DateReported).HasColumnName("date_reported");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
@@ -334,6 +397,58 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
                 .WithMany()
                 .HasForeignKey(x => x.NegotiationSessionId)
                 .HasConstraintName("FK_negotiation_suggestions_session");
+        });
+
+        modelBuilder.Entity<RenterPropertyVerification>(entity =>
+        {
+            entity.ToTable("renter_property_verifications", "dbo");
+            entity.HasKey(x => x.RenterPropertyVerificationId);
+            entity.Property(x => x.RenterPropertyVerificationId).HasColumnName("renter_property_verification_id");
+            entity.Property(x => x.RenterId).HasColumnName("renter_id");
+            entity.Property(x => x.PropertyId).HasColumnName("property_id");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(80);
+            entity.Property(x => x.ConfidenceScore).HasColumnName("confidence_score").HasPrecision(5, 2);
+            entity.Property(x => x.VerifiedFrom).HasColumnName("verified_from");
+            entity.Property(x => x.VerifiedTo).HasColumnName("verified_to");
+            entity.Property(x => x.ReviewReason).HasColumnName("review_reason").HasMaxLength(1000);
+            entity.Property(x => x.VerifiedAt).HasColumnName("verified_at");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasOne<Renter>()
+                .WithMany()
+                .HasForeignKey(x => x.RenterId)
+                .HasConstraintName("FK_renter_property_verifications_renter");
+
+            entity.HasOne<Property>()
+                .WithMany()
+                .HasForeignKey(x => x.PropertyId)
+                .HasConstraintName("FK_renter_property_verifications_property");
+        });
+
+        modelBuilder.Entity<ResidencyVerificationDocument>(entity =>
+        {
+            entity.ToTable("residency_verification_documents", "dbo");
+            entity.HasKey(x => x.ResidencyVerificationDocumentId);
+            entity.Property(x => x.ResidencyVerificationDocumentId).HasColumnName("residency_verification_document_id");
+            entity.Property(x => x.RenterPropertyVerificationId).HasColumnName("renter_property_verification_id");
+            entity.Property(x => x.DocumentType).HasColumnName("document_type").HasMaxLength(100);
+            entity.Property(x => x.FileName).HasColumnName("file_name").HasMaxLength(400);
+            entity.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(200);
+            entity.Property(x => x.FileSizeBytes).HasColumnName("file_size_bytes");
+            entity.Property(x => x.FileHashSha256).HasColumnName("file_hash_sha256").HasMaxLength(128);
+            entity.Property(x => x.ExtractedName).HasColumnName("extracted_name").HasMaxLength(510);
+            entity.Property(x => x.ExtractedAddress).HasColumnName("extracted_address").HasMaxLength(800);
+            entity.Property(x => x.ExtractedFromDate).HasColumnName("extracted_from_date");
+            entity.Property(x => x.ExtractedToDate).HasColumnName("extracted_to_date");
+            entity.Property(x => x.ParserConfidence).HasColumnName("parser_confidence").HasPrecision(5, 2);
+            entity.Property(x => x.ProcessingStatus).HasColumnName("processing_status").HasMaxLength(80);
+            entity.Property(x => x.UploadedAt).HasColumnName("uploaded_at");
+
+            entity.HasOne<RenterPropertyVerification>()
+                .WithMany()
+                .HasForeignKey(x => x.RenterPropertyVerificationId)
+                .HasConstraintName("FK_residency_verification_documents_verification");
         });
     }
 }

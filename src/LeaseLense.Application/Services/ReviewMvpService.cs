@@ -21,6 +21,7 @@ public sealed class ReviewMvpService : IReviewMvpService
         var renters = await _dbContext.GetRentersAsync(cancellationToken);
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
+        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var propertyLookup = properties.ToDictionary(x => x.PropertyId);
         var renterLookup = renters.ToDictionary(x => x.RenterId);
@@ -35,6 +36,10 @@ public sealed class ReviewMvpService : IReviewMvpService
                 renterLookup.TryGetValue(review.RenterId, out var renter);
 
                 var reviewerAlias = AnonymizedNameGenerator.Generate(review.ReviewId);
+                var hasVerifiedStay = verifications.Any(v =>
+                    v.RenterId == review.RenterId
+                    && v.PropertyId == review.PropertyId
+                    && string.Equals(v.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
 
                 return new
                 {
@@ -47,8 +52,7 @@ public sealed class ReviewMvpService : IReviewMvpService
                         City = property?.City ?? "Unknown City",
                         MonthlyRent = review.MonthlyRent,
                         AverageRating = averageRatings.GetValueOrDefault(review.ReviewId, 0m),
-                        IsVerified = string.Equals(review.VerificationStatus, "verified", StringComparison.OrdinalIgnoreCase)
-                                     || (renter?.IsVerified ?? false),
+                        VerificationBadge = hasVerifiedStay ? "Verified Stay" : "Unverified Stay",
                         AnonymizedReviewer = reviewerAlias,
                         ReviewText = string.IsNullOrWhiteSpace(review.ReviewText)
                             ? "No review details provided."
@@ -97,12 +101,24 @@ public sealed class ReviewMvpService : IReviewMvpService
         return shaped.Select(x => x.Review).Take(50).ToList();
     }
 
-    public async Task<ReviewCreateMetadataDto> GetCreateMetadataAsync(CancellationToken cancellationToken = default)
+    public async Task<ReviewCreateMetadataDto> GetCreateMetadataAsync(string reporterEmail, CancellationToken cancellationToken = default)
     {
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var canSubmit = false;
+        var restrictionMessage = "You can submit for any property. Verified Stay applies only to your matched verified residency.";
+        if (!string.IsNullOrWhiteSpace(reporterEmail))
+        {
+            var renter = await _dbContext.GetRenterByEmailAsync(reporterEmail.Trim(), cancellationToken);
+            if (renter is not null)
+            {
+                canSubmit = true;
+            }
+        }
 
         return new ReviewCreateMetadataDto
         {
+            CanSubmit = canSubmit,
+            RestrictionMessage = restrictionMessage,
             Properties = properties
                 .OrderBy(x => x.Title)
                 .ThenBy(x => x.StreetAddress)
@@ -142,7 +158,7 @@ public sealed class ReviewMvpService : IReviewMvpService
             MonthlyRent = request.MonthlyRent,
             UnitType = string.IsNullOrWhiteSpace(request.UnitType) ? null : request.UnitType.Trim(),
             ReviewText = request.ReviewText.Trim(),
-            VerificationStatus = string.IsNullOrWhiteSpace(request.VerificationStatus) ? "verified" : request.VerificationStatus.Trim(),
+            VerificationStatus = "unverified",
             CreatedAt = DateTime.UtcNow
         };
 
@@ -159,9 +175,13 @@ public sealed class ReviewMvpService : IReviewMvpService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<Guid> CreateOrResolvePropertyAsync(Guid renterId, CreateReviewDto request, CancellationToken cancellationToken)
+    private async Task<Guid> CreateOrResolvePropertyAsync(
+        Guid renterId,
+        CreateReviewDto request,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.NewPropertyTitle)
+            || string.IsNullOrWhiteSpace(request.NewCommunityName)
             || string.IsNullOrWhiteSpace(request.NewPropertyStreetAddress)
             || string.IsNullOrWhiteSpace(request.NewPropertyCity)
             || string.IsNullOrWhiteSpace(request.NewPropertyCountry))
@@ -170,14 +190,29 @@ public sealed class ReviewMvpService : IReviewMvpService
         }
 
         var title = request.NewPropertyTitle.Trim();
+        var communityName = request.NewCommunityName.Trim();
         var street = request.NewPropertyStreetAddress.Trim();
         var city = request.NewPropertyCity.Trim();
         var country = request.NewPropertyCountry.Trim();
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var community = communities.FirstOrDefault(x =>
+            string.Equals(x.Name, communityName, StringComparison.OrdinalIgnoreCase));
+        if (community is null)
+        {
+            community = new Community
+            {
+                CommunityId = Guid.NewGuid(),
+                Name = communityName,
+                City = city,
+                Country = country,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _dbContext.AddCommunityAsync(community, cancellationToken);
+        }
 
         var existingProperty = (await _dbContext.GetPropertiesAsync(cancellationToken))
             .FirstOrDefault(x =>
-                string.Equals(x.Title, title, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(x.StreetAddress, street, StringComparison.OrdinalIgnoreCase)
+                string.Equals(x.StreetAddress, street, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(x.City, city, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(x.Country, country, StringComparison.OrdinalIgnoreCase));
 
@@ -189,6 +224,7 @@ public sealed class ReviewMvpService : IReviewMvpService
         var property = new Property
         {
             PropertyId = Guid.NewGuid(),
+            CommunityId = community.CommunityId,
             Title = title,
             StreetAddress = street,
             City = city,
@@ -198,7 +234,6 @@ public sealed class ReviewMvpService : IReviewMvpService
         };
 
         await _dbContext.AddPropertyAsync(property, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
         return property.PropertyId;
     }
 }

@@ -7,4 +7,5 @@ public sealed class HomeReviewListItemViewModel
     public decimal? AverageRating { get; init; }
     public decimal? MonthlyRent { get; init; }
     public string ReviewText { get; init; } = string.Empty;
+    public string? VerificationBadge { get; init; }
 }

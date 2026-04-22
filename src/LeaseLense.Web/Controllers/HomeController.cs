@@ -39,7 +39,8 @@ public class HomeController : Controller
                     City = x.City,
                     AverageRating = x.AverageRating,
                     MonthlyRent = x.MonthlyRent,
-                    ReviewText = x.ReviewText
+                    ReviewText = x.ReviewText,
+                    VerificationBadge = x.VerificationBadge
                 })
                 .ToList(),
             ScamReports = data.ScamReports
@@ -49,7 +50,8 @@ public class HomeController : Controller
                     City = x.City,
                     ScamType = x.ScamType,
                     SeverityScore = x.SeverityScore,
-                    Description = x.Description
+                    Description = x.Description,
+                    VerificationBadge = x.VerificationBadge
                 })
                 .ToList()
         };

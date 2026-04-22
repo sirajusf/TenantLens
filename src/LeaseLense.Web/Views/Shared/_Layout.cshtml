@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - LeaseLense</title>
+    <title>@ViewData["Title"] - TenantLens</title>
     <script type="importmap"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,48 +16,74 @@
     <link rel="stylesheet" href="~/LeaseLense.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <div id="page-loader" class="page-loader-overlay" role="status" aria-live="polite" aria-label="Loading page">
-        <div class="page-loader-content">
-            <div class="page-loader-brand">
-                <span class="brand-dot"></span>
-                LeaseLense
+    @{
+        var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+        var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    }
+    <div id="page-loader" class="page-skeleton-overlay" role="status" aria-live="polite" aria-label="Loading page">
+        <div class="page-skeleton-panel" aria-hidden="true">
+            <div class="page-skeleton-row page-skeleton-row--nav">
+                <span class="skeleton-pill"></span>
+                <span class="skeleton-pill"></span>
+                <span class="skeleton-pill"></span>
+                <span class="skeleton-pill skeleton-pill--wide"></span>
             </div>
-            <div class="page-loader-spinner" aria-hidden="true"></div>
-            <p>Preparing your renter intelligence experience...</p>
+            <div class="skeleton-card">
+                <div class="skeleton-line skeleton-line--title"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line skeleton-line--medium"></div>
+                <div class="skeleton-line skeleton-line--short"></div>
+            </div>
+            <div class="page-skeleton-row page-skeleton-row--split">
+                <div class="skeleton-block"></div>
+                <div class="skeleton-block"></div>
+            </div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line skeleton-line--short"></div>
         </div>
     </div>
     <header class="site-header">
         <div class="container nav-wrapper">
             <a class="brand" asp-area="" asp-controller="Home" asp-action="Index">
                 <span class="brand-dot"></span>
-                LeaseLense
+                TenantLens
             </a>
             <div class="nav-actions">
+                
                 <nav class="main-nav" aria-label="Main navigation">
-                    <a asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                    <a asp-area="" asp-controller="Properties" asp-action="Index">Properties</a>
-                    <a asp-area="" asp-controller="Reviews" asp-action="Index">Reviews</a>
-                    <a asp-area="" asp-controller="ScamReports" asp-action="Index">Scam Reports</a>
+                    <a asp-area="" asp-controller="Home" asp-action="Index" class="@(currentController == "Home" && currentAction == "Index" ? "active" : null)">Home</a>
+                    <a asp-area="" asp-controller="Properties" asp-action="Index" class="@(currentController == "Properties" ? "active" : null)">Properties</a>
+                    <a asp-area="" asp-controller="Reviews" asp-action="Index" class="@(currentController == "Reviews" ? "active" : null)">Reviews</a>
+                    <a asp-area="" asp-controller="ScamReports" asp-action="Index" class="@(currentController == "ScamReports" ? "active" : null)">Scam Reports</a>
                     @if (User.Identity?.IsAuthenticated ?? false)
                     {
-                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="mvp-btn ghost">Sign Out</button>
-                        </form>
+                        <details class="user-menu">
+                            <summary class="user-menu-trigger" aria-label="User menu">
+                                <span class="user-menu-icon">👤</span>
+                            </summary>
+                            <div class="user-menu-panel">
+                                <a asp-area="" asp-controller="Profile" asp-action="Index" class="@(currentController == "Profile" ? "active" : null)">Profile</a>
+                                <label class="theme-toggle" for="theme-switch" aria-label="Toggle dark mode">
+                                    <span class="theme-label">Dark</span>
+                                    <span class="theme-switch-ui">
+                                        <input id="theme-switch" class="theme-switch-input" type="checkbox" />
+                                        <span class="theme-switch-slider" aria-hidden="true"></span>
+                                    </span>
+                                </label>
+                                <form asp-controller="Account" asp-action="Logout" method="post" class="user-menu-signout">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="mvp-btn ghost">Sign Out</button>
+                                </form>
+                            </div>
+                        </details>
                     }
-                    else
+                    @if (!(User.Identity?.IsAuthenticated ?? false))
                     {
-                        <a asp-area="" asp-controller="Account" asp-action="Login">Sign In</a>
-                        <a asp-area="" asp-controller="Account" asp-action="Register">Sign Up</a>
+                        <a asp-area="" asp-controller="Account" asp-action="Login" class="@(currentController == "Account" && currentAction == "Login" ? "active" : null)">Sign In</a>
+                        <a asp-area="" asp-controller="Account" asp-action="Register" class="@(currentController == "Account" && currentAction == "Register" ? "active" : null)">Sign Up</a>
                     }
+
                 </nav>
-                <label class="theme-toggle" for="theme-switch" aria-label="Toggle dark mode">
-                    <span class="theme-label">Dark</span>
-                    <span class="theme-switch-ui">
-                        <input id="theme-switch" class="theme-switch-input" type="checkbox" />
-                        <span class="theme-switch-slider" aria-hidden="true"></span>
-                    </span>
-                </label>
             </div>
         </div>
     </header>
@@ -69,7 +95,7 @@
 
     <footer class="footer-shell">
         <div class="container">
-            &copy; 2026 LeaseLense - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; 2026 TenantLens - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>

@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<IReputationMvpService, ReputationMvpService>();
         services.AddScoped<IScamReportMvpService, ScamReportMvpService>();
         services.AddScoped<IUserAccountService, UserAccountService>();
+        services.AddScoped<IProfileService, ProfileService>();
         return services;
     }
 }

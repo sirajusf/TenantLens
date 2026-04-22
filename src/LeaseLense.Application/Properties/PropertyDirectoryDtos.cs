@@ -46,7 +46,7 @@ public sealed class PropertyProfileReviewDto
     public string ReviewerAlias { get; init; } = string.Empty;
     public decimal? MonthlyRent { get; init; }
     public decimal AverageRating { get; init; }
-    public bool IsVerified { get; init; }
+    public string? VerificationBadge { get; init; }
     public string ReviewText { get; init; } = string.Empty;
     public DateTime CreatedAt { get; init; }
 }
@@ -57,5 +57,6 @@ public sealed class PropertyProfileScamReportDto
     public string ScamType { get; init; } = string.Empty;
     public decimal? SeverityScore { get; init; }
     public string Description { get; init; } = string.Empty;
+    public string? VerificationBadge { get; init; }
     public DateTime DateReported { get; init; }
 }

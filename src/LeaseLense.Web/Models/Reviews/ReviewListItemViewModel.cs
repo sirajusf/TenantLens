@@ -8,7 +8,7 @@ public sealed class ReviewListItemViewModel
     public string City { get; init; } = string.Empty;
     public decimal? MonthlyRent { get; init; }
     public decimal AverageRating { get; init; }
-    public bool IsVerified { get; init; }
+    public string? VerificationBadge { get; init; }
     public string AnonymizedReviewer { get; init; } = string.Empty;
     public string ReviewText { get; init; } = string.Empty;
 }

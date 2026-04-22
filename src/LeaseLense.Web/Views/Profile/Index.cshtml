@@ -1,0 +1,178 @@
+@model LeaseLense.Web.Models.Profile.ProfilePageViewModel
+@{
+    ViewData["Title"] = "Profile";
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>Your Profile</h1>
+        <p>Manage your account, address, and residency verification for anonymous Verified Stay badges.</p>
+    </div>
+
+    @if (TempData["ProfileSuccess"] is string success)
+    {
+        <div class="mvp-empty">@success</div>
+    }
+    @if (TempData["ProfileError"] is string error)
+    {
+        <div class="mvp-error">@error</div>
+    }
+    <div class="profile-layout">
+        <article class="mvp-card accent-cyan profile-card">
+            <h2>Account</h2>
+            <div class="mvp-tags">
+                <span class="mvp-badge">Email @Model.Account.Email</span>
+                @if (Model.Account.EmailVerified)
+                {
+                    <span class="mvp-badge success">Email verified</span>
+                }
+                else
+                {
+                    <span class="mvp-badge warn">Email not verified</span>
+                }
+                @if (Model.Account.HasVerifiedStay)
+                {
+                    <span class="mvp-badge">Verified stay</span>
+                }
+            </div>
+            @if (!Model.Account.EmailVerified)
+            {
+                <form asp-action="SendVerificationEmail" method="post" class="mvp-actions" style="margin-top:0.55rem;">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="mvp-btn ghost">Send verification email</button>
+                </form>
+            }
+
+            <form asp-action="UpdateAccount" method="post" class="mvp-form profile-form">
+                @Html.AntiForgeryToken()
+                <div class="mvp-form-grid">
+                    <div class="mvp-field full">
+                        <label class="mvp-label" for="DisplayName">Name</label>
+                        <input id="DisplayName" name="DisplayName" class="mvp-input" value="@Model.Account.DisplayName" required @Html.Raw(Model.Account.NameLocked ? "readonly" : "") />
+                        @if (Model.Account.NameLocked)
+                        {
+                            <p class="mvp-text profile-hint">Name is locked after Verified Stay to preserve badge integrity.</p>
+                        }
+                    </div>
+                    <div class="mvp-field full">
+                        <label class="mvp-label" for="StreetAddress">Street address</label>
+                        <input id="StreetAddress" name="StreetAddress" class="mvp-input" value="@Model.Account.StreetAddress" />
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="City">City</label>
+                        <input id="City" name="City" class="mvp-input" value="@Model.Account.City" />
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="StateOrRegion">State/Region</label>
+                        <input id="StateOrRegion" name="StateOrRegion" class="mvp-input" value="@Model.Account.StateOrRegion" />
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="PostalCode">Postal code</label>
+                        <input id="PostalCode" name="PostalCode" class="mvp-input" value="@Model.Account.PostalCode" />
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="Country">Country</label>
+                        <input id="Country" name="Country" class="mvp-input" value="@Model.Account.Country" />
+                    </div>
+                </div>
+                <div class="mvp-actions">
+                    <button type="submit" class="mvp-btn">Save profile</button>
+                </div>
+            </form>
+        </article>
+
+        <article class="mvp-card accent-indigo profile-card">
+            <h2>Residency verification</h2>
+            <p class="mvp-text">Your saved account address is used for verification. Update it in Account first if needed.</p>
+            @if (!Model.Account.EmailVerified)
+            {
+                <p class="mvp-text">Verify your email first to unlock address verification requests.</p>
+            }
+            <div class="profile-guidelines">
+                <h3>Document requirements</h3>
+                <ul>
+                    <li>Full name and property address should be clearly visible in the document.</li>
+                    <li>Date range or billing period is recommended for stronger confidence.</li>
+                    <li>Accepted files: lease, utility bill, or bank statement in PDF/PNG/JPEG</li>
+                </ul>
+            </div>
+
+            <form asp-action="SubmitVerification" method="post" enctype="multipart/form-data" class="mvp-form profile-form">
+                @Html.AntiForgeryToken()
+                <div class="mvp-form-grid">
+                    <div class="mvp-field full">
+                        <label class="mvp-label" for="CommunityName">Community name</label>
+                        <input id="CommunityName" name="CommunityName" class="mvp-input" @Html.Raw(Model.Account.EmailVerified ? "required" : "disabled") />
+                    </div>
+                    <div class="mvp-field full">
+                        <label class="mvp-label" for="PropertyTitle">Building name</label>
+                        <input id="PropertyTitle" name="PropertyTitle" class="mvp-input" @Html.Raw(Model.Account.EmailVerified ? "required" : "disabled") />
+                    </div>
+                    <div class="mvp-field full">
+                        <label class="mvp-label">Account address used for verification</label>
+                        <p class="mvp-text">@(!string.IsNullOrWhiteSpace(Model.VerificationForm.PropertyAddressSummary) ? Model.VerificationForm.PropertyAddressSummary : "Add your address in Account before submitting verification.")</p>
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="DocumentType">Document type</label>
+                        <select id="DocumentType" name="DocumentType" class="mvp-select" @Html.Raw(!Model.Account.EmailVerified ? "disabled" : "")>
+                            <option value="lease">Lease</option>
+                            <option value="utility_bill">Utility bill</option>
+                            <option value="bank_statement">Bank statement</option>
+                        </select>
+                    </div>
+                    <div class="mvp-field">
+                        <label class="mvp-label" for="proofDocument">Document file</label>
+                        <input id="proofDocument" name="proofDocument" type="file" class="mvp-input" accept=".pdf,.png,.jpg,.jpeg" @Html.Raw(Model.Account.EmailVerified ? "required" : "disabled") />
+                    </div>
+                    <div class="mvp-field full">
+                        <p class="mvp-text">Document text extraction is automatic using OCR. Do not type extracted name or address manually.</p>
+                    </div>
+                </div>
+                <div class="mvp-actions">
+                    <button type="submit" class="mvp-btn" @Html.Raw(!Model.Account.EmailVerified ? "disabled" : "")>Submit verification</button>
+                </div>
+            </form>
+        </article>
+    </div>
+
+    <section class="mvp-form profile-history">
+        <h2>Verification history</h2>
+        @if (!Model.VerificationStatuses.Any())
+        {
+            <p class="mvp-text">No verification requests yet.</p>
+        }
+        else
+        {
+            <div class="mvp-grid profile-history-grid">
+                @foreach (var item in Model.VerificationStatuses)
+                {
+                    <article class="mvp-card">
+                        <h3>@item.PropertyTitle</h3>
+                        <div class="mvp-tags">
+                            <span class="mvp-badge">@ToDisplayStatus(item.Status)</span>
+                            <span class="mvp-badge">Confidence @item.ConfidenceScore.ToString("0")%</span>
+                        </div>
+                        @if (string.Equals(item.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(item.Status, "rejected", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <p class="mvp-text">Check your email for verification decision details and next steps.</p>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</section>
+
+@functions {
+    private static string ToDisplayStatus(string status)
+    {
+        return status.ToLowerInvariant() switch
+        {
+            "verified_stay" => "Verified stay",
+            "pending_manual_review" => "Pending review",
+            "rejected" => "Rejected",
+            _ => status.Replace("_", " ")
+        };
+    }
+}

@@ -29,7 +29,8 @@ public sealed class ScamReportsController : Controller
                 ScamType = x.ScamType,
                 SeverityScore = x.SeverityScore,
                 DateReported = x.DateReported,
-                Description = x.Description
+                Description = x.Description,
+                VerificationBadge = x.VerificationBadge
             }).ToList()
         };
 
@@ -40,7 +41,12 @@ public sealed class ScamReportsController : Controller
     [Authorize]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        var metadata = await _scamReportMvpService.GetFormMetadataAsync(cancellationToken);
+        var reporterEmail = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(reporterEmail))
+        {
+            return Challenge();
+        }
+        var metadata = await _scamReportMvpService.GetFormMetadataAsync(reporterEmail, cancellationToken);
         return View(ToCreatePageModel(new CreateScamReportViewModel(), metadata));
     }
 
@@ -49,21 +55,22 @@ public sealed class ScamReportsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CreateScamReportViewModel form, CancellationToken cancellationToken)
     {
-        var metadata = await _scamReportMvpService.GetFormMetadataAsync(cancellationToken);
+        var reporterEmail = User.Identity?.Name;
+        if (string.IsNullOrWhiteSpace(reporterEmail))
+        {
+            return Challenge();
+        }
+        var metadata = await _scamReportMvpService.GetFormMetadataAsync(reporterEmail, cancellationToken);
 
         if (!ModelState.IsValid)
         {
             return View(ToCreatePageModel(form, metadata));
         }
 
-        if (string.IsNullOrWhiteSpace(User.Identity?.Name))
-        {
-            return Challenge();
-        }
-
         var request = new CreateScamReportDto
         {
             PropertyId = form.PropertyNotListed ? null : form.PropertyId,
+            NewCommunityName = form.NewCommunityName,
             NewPropertyTitle = form.NewPropertyTitle,
             NewPropertyStreetAddress = form.NewPropertyStreetAddress,
             NewPropertyCity = form.NewPropertyCity,
@@ -71,10 +78,18 @@ public sealed class ScamReportsController : Controller
             ScamType = form.ScamType,
             Description = form.Description,
             SeverityScore = form.SeverityScore,
-            ReporterEmail = User.Identity!.Name!
+            ReporterEmail = reporterEmail
         };
 
-        await _scamReportMvpService.SubmitScamReportAsync(request, cancellationToken);
+        try
+        {
+            await _scamReportMvpService.SubmitScamReportAsync(request, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(ToCreatePageModel(form, metadata));
+        }
         TempData["ScamReportSuccess"] = "Scam report submitted successfully.";
         return RedirectToAction(nameof(Index));
     }
@@ -86,6 +101,8 @@ public sealed class ScamReportsController : Controller
         return new ScamReportCreatePageViewModel
         {
             Form = form,
+            CanSubmit = metadata.CanSubmit,
+            RestrictionMessage = metadata.RestrictionMessage,
             Properties = metadata.Properties
                 .Select(x => new ScamReportOptionViewModel { Id = x.Id, Label = x.Label })
                 .ToList()
