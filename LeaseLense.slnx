@@ -5,4 +5,7 @@
     <Project Path="src/LeaseLense.Infrastructure/LeaseLense.Infrastructure.csproj" />
     <Project Path="src/LeaseLense.Web/LeaseLense.Web.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LeaseLense.Web.Tests/LeaseLense.Web.Tests.csproj" />
+  </Folder>
 </Solution>
