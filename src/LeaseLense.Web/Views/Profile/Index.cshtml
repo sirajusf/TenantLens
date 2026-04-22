@@ -146,16 +146,29 @@
             <div class="mvp-grid profile-history-grid">
                 @foreach (var item in Model.VerificationStatuses)
                 {
-                    <article class="mvp-card">
+                    <article class="mvp-card profile-verification-card">
                         <h3>@item.PropertyTitle</h3>
                         <div class="mvp-tags">
                             <span class="mvp-badge">@ToDisplayStatus(item.Status)</span>
-                            <span class="mvp-badge">Confidence @item.ConfidenceScore.ToString("0")%</span>
                         </div>
+                        <p class="mvp-text profile-verification-summary">@item.CustomerSummary</p>
+                        <dl class="profile-verification-details">
+                            <dt>Name on your account</dt>
+                            <dd>@(string.IsNullOrWhiteSpace(item.ProvidedName) ? "Not on file" : item.ProvidedName)</dd>
+                            <dt>Address on your account (for this stay)</dt>
+                            <dd>@(string.IsNullOrWhiteSpace(item.ProvidedAddressSummary) ? "Not on file" : item.ProvidedAddressSummary)</dd>
+                            <dt>From your document</dt>
+                            <dd>
+                                <span class="profile-detail-label">Name:</span>
+                                @(string.IsNullOrWhiteSpace(item.ExtractedName) ? "Not read from document" : item.ExtractedName)<br />
+                                <span class="profile-detail-label">Address:</span>
+                                @(string.IsNullOrWhiteSpace(item.ExtractedAddress) ? "Not read from document" : item.ExtractedAddress)
+                            </dd>
+                        </dl>
                         @if (string.Equals(item.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(item.Status, "rejected", StringComparison.OrdinalIgnoreCase))
                         {
-                            <p class="mvp-text">Check your email for verification decision details and next steps.</p>
+                            <p class="mvp-text profile-verification-footnote">We also sent details to your email when the status changed.</p>
                         }
                     </article>
                 }

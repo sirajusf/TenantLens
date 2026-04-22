@@ -1,0 +1,7 @@
+Your previous response did not satisfy strict JSON parsing.
+Return STRICT JSON only in this schema:
+{
+  "tenants": ["string"],
+  "address": "string"
+}
+No markdown, no extra keys, no explanation text.

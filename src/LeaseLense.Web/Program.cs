@@ -3,8 +3,15 @@ using LeaseLense.Infrastructure;
 using LeaseLense.Infrastructure.Data;
 using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+using (var keyVaultLoggerFactory = LoggerFactory.Create(static b => b.AddConsole()))
+{
+    var keyVaultLogger = keyVaultLoggerFactory.CreateLogger("KeyVault");
+    await KeyVaultSecretLoader.ApplyAsync(builder.Configuration, keyVaultLogger);
+}
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -12,8 +19,13 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.Configure<GmailSmtpOptions>(builder.Configuration.GetSection(GmailSmtpOptions.SectionName));
 builder.Services.Configure<AzureDocumentIntelligenceOptions>(builder.Configuration.GetSection(AzureDocumentIntelligenceOptions.SectionName));
+builder.Services.Configure<LlmFoundryFileLoggingOptions>(builder.Configuration.GetSection(LlmFoundryFileLoggingOptions.SectionName));
+builder.Services.AddSingleton<ILlmFoundryErrorFileLog, LlmFoundryErrorFileLog>();
 builder.Services.AddScoped<IEmailVerificationSender, GmailEmailVerificationSender>();
+builder.Services.AddHttpClient<IAddressExtractionLlmClient, AzureFoundryAddressExtractionLlmClient>();
 builder.Services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
+builder.Services.AddSingleton<IResidencyFallbackQueue, ResidencyFallbackQueue>();
+builder.Services.AddHostedService<ResidencyFallbackWorker>();
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>(options =>
     {
@@ -87,4 +99,4 @@ if (shouldEnsureIdentitySchema)
 }
 
 
-app.Run();
+await app.RunAsync();

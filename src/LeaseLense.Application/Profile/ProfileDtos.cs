@@ -17,11 +17,17 @@ public sealed class UserProfileDto
 
 public sealed class UserVerificationStatusDto
 {
+    public Guid VerificationId { get; init; }
     public Guid PropertyId { get; init; }
     public string PropertyTitle { get; init; } = string.Empty;
     public string Status { get; init; } = "pending_manual_review";
     public decimal ConfidenceScore { get; init; }
     public string? ReviewReason { get; init; }
+    public string? ExtractedName { get; init; }
+    public string? ExtractedAddress { get; init; }
+    public string ProvidedName { get; init; } = string.Empty;
+    public string ProvidedAddressSummary { get; init; } = string.Empty;
+    public string CustomerSummary { get; init; } = string.Empty;
     public DateTime UpdatedAt { get; init; }
 }
 

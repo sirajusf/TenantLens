@@ -1247,6 +1247,50 @@ html[data-theme="dark"] .login-secondary-actions {
   margin-top: 0.7rem;
 }
 
+.profile-verification-card .profile-verification-summary {
+  margin-top: 0.65rem;
+  color: var(--text);
+}
+
+.profile-verification-details {
+  margin: 0.85rem 0 0;
+  display: grid;
+  gap: 0.45rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.profile-verification-details dt {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.profile-verification-details dd {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.profile-verification-details dd:last-child {
+  margin-bottom: 0;
+}
+
+.profile-detail-label {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.profile-verification-footnote {
+  margin-top: 0.75rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
 @media (max-width: 960px) {
   .register-grid {
     grid-template-columns: 1fr;

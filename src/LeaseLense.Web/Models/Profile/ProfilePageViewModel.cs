@@ -31,10 +31,14 @@ public sealed class ProfileResidencyVerificationFormViewModel
 
 public sealed class ProfileVerificationStatusViewModel
 {
+    public Guid VerificationId { get; init; }
     public string PropertyTitle { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
-    public decimal ConfidenceScore { get; init; }
-    public string? ReviewReason { get; init; }
+    public string? ExtractedName { get; init; }
+    public string? ExtractedAddress { get; init; }
+    public string ProvidedName { get; init; } = string.Empty;
+    public string ProvidedAddressSummary { get; init; } = string.Empty;
+    public string CustomerSummary { get; init; } = string.Empty;
     public DateTime UpdatedAt { get; init; }
 }
 

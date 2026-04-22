@@ -19,17 +19,20 @@ public sealed class ProfileController : Controller
     private readonly UserManager<IdentityUser> _userManager;
     private readonly IEmailVerificationSender _emailVerificationSender;
     private readonly IDocumentExtractionService _documentExtractionService;
+    private readonly IResidencyFallbackQueue _residencyFallbackQueue;
 
     public ProfileController(
         IProfileService profileService,
         UserManager<IdentityUser> userManager,
         IEmailVerificationSender emailVerificationSender,
-        IDocumentExtractionService documentExtractionService)
+        IDocumentExtractionService documentExtractionService,
+        IResidencyFallbackQueue residencyFallbackQueue)
     {
         _profileService = profileService;
         _userManager = userManager;
         _emailVerificationSender = emailVerificationSender;
         _documentExtractionService = documentExtractionService;
+        _residencyFallbackQueue = residencyFallbackQueue;
     }
 
     [HttpGet]
@@ -164,11 +167,34 @@ public sealed class ProfileController : Controller
 
         try
         {
-            var extraction = await _documentExtractionService.ExtractResidencyEvidenceAsync(
+            var profile = await _profileService.GetProfileAsync(email, cancellationToken);
+            var primaryExtraction = await _documentExtractionService.ExtractPrimaryAsync(
                 fileBytes,
                 form.DocumentType ?? string.Empty,
+                profile.DisplayName,
                 proofDocument.ContentType,
                 cancellationToken);
+
+            if (primaryExtraction.RequiresBackgroundFallback)
+            {
+                await _residencyFallbackQueue.QueueAsync(new ResidencyFallbackJob
+                {
+                    Email = email,
+                    DocumentType = form.DocumentType ?? string.Empty,
+                    CommunityName = form.CommunityName ?? string.Empty,
+                    PropertyTitle = form.PropertyTitle ?? string.Empty,
+                    FileName = proofDocument.FileName ?? string.Empty,
+                    ContentType = proofDocument.ContentType,
+                    FileSizeBytes = proofDocument.Length,
+                    FileHashSha256 = hashHex,
+                    FileBytes = fileBytes
+                }, cancellationToken);
+                await _emailVerificationSender.SendResidencyVerificationInProcessEmailAsync(email, cancellationToken);
+                TempData["ProfileSuccess"] = "Verification submitted and is being processed. You will receive an email soon.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var extraction = primaryExtraction.Extraction;
             var result = await _profileService.SubmitResidencyVerificationAsync(new SubmitResidencyVerificationDto
             {
                 Email = email,
@@ -189,7 +215,29 @@ public sealed class ProfileController : Controller
             if (string.Equals(result.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(result.Status, "rejected", StringComparison.OrdinalIgnoreCase))
             {
-                await _emailVerificationSender.SendResidencyDecisionEmailAsync(email, result.Status, result.Reason, cancellationToken);
+                await _emailVerificationSender.SendResidencyDecisionEmailAsync(
+                    email,
+                    new ResidencyDecisionEmailContext
+                    {
+                        Status = result.Status,
+                        Reason = result.Reason,
+                        DisplayName = profile.DisplayName,
+                        StreetAddress = profile.StreetAddress,
+                        City = profile.City,
+                        StateOrRegion = profile.StateOrRegion,
+                        PostalCode = profile.PostalCode,
+                        Country = profile.Country,
+                        DocumentType = form.DocumentType ?? string.Empty,
+                        CommunityName = form.CommunityName ?? string.Empty,
+                        PropertyTitle = form.PropertyTitle ?? string.Empty,
+                        FileName = proofDocument.FileName ?? string.Empty,
+                        ExtractedName = extraction.ExtractedName ?? string.Empty,
+                        ExtractedAddress = extraction.ExtractedAddress ?? string.Empty,
+                        ExtractedFromDate = extraction.ExtractedFromDate,
+                        ExtractedToDate = extraction.ExtractedToDate,
+                        ParserConfidence = extraction.ParserConfidence
+                    },
+                    cancellationToken);
             }
         }
         catch (InvalidOperationException ex)
@@ -234,35 +282,29 @@ public sealed class ProfileController : Controller
             },
             VerificationForm = new ProfileResidencyVerificationFormViewModel
             {
-                PropertyAddressSummary = BuildAddressSummary(profile),
+                PropertyAddressSummary = ResidencyVerificationDisplayHelper.FormatPropertyAddress(
+                    profile.StreetAddress,
+                    profile.City,
+                    profile.StateOrRegion,
+                    profile.PostalCode,
+                    profile.Country),
                 CommunityName = string.Empty
             },
             VerificationStatuses = profile.Verifications
                 .Select(x => new ProfileVerificationStatusViewModel
                 {
+                    VerificationId = x.VerificationId,
                     PropertyTitle = x.PropertyTitle,
                     Status = x.Status,
-                    ConfidenceScore = x.ConfidenceScore,
-                    ReviewReason = x.ReviewReason,
+                    ExtractedName = x.ExtractedName,
+                    ExtractedAddress = x.ExtractedAddress,
+                    ProvidedName = x.ProvidedName,
+                    ProvidedAddressSummary = x.ProvidedAddressSummary,
+                    CustomerSummary = x.CustomerSummary,
                     UpdatedAt = x.UpdatedAt
                 })
                 .ToList()
         };
     }
 
-    private static string BuildAddressSummary(UserProfileDto profile)
-    {
-        var parts = new[]
-        {
-            profile.StreetAddress,
-            profile.City,
-            profile.StateOrRegion,
-            profile.PostalCode,
-            profile.Country
-        }
-        .Where(x => !string.IsNullOrWhiteSpace(x))
-        .Select(x => x!.Trim());
-
-        return string.Join(", ", parts);
-    }
 }

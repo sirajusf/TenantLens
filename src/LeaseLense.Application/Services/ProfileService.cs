@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using LeaseLense.Application.Abstractions;
 using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Profile;
@@ -7,6 +8,7 @@ namespace LeaseLense.Application.Services;
 
 public sealed class ProfileService : IProfileService
 {
+    private static readonly Regex NonAlphaNumericRegex = new("[^A-Z0-9]", RegexOptions.Compiled);
     private readonly ILeaseLensDbContext _dbContext;
 
     public ProfileService(ILeaseLensDbContext dbContext)
@@ -21,11 +23,18 @@ public sealed class ProfileService : IProfileService
 
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
         var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var documents = await _dbContext.GetResidencyVerificationDocumentsAsync(cancellationToken);
         var nameLocked = verifications.Any(x =>
             x.RenterId == renter.RenterId
             && string.Equals(x.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
 
-        var propertyLookup = properties.ToDictionary(x => x.PropertyId, x => x.Title);
+        var propertyById = properties.ToDictionary(x => x.PropertyId, x => x);
+
+        var documentLookup = documents
+            .GroupBy(x => x.RenterPropertyVerificationId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.OrderByDescending(d => d.UploadedAt).First());
 
         return new UserProfileDto
         {
@@ -42,14 +51,39 @@ public sealed class ProfileService : IProfileService
             Verifications = verifications
                 .Where(x => x.RenterId == renter.RenterId)
                 .OrderByDescending(x => x.UpdatedAt)
-                .Select(x => new UserVerificationStatusDto
+                .Select(x =>
                 {
-                    PropertyId = x.PropertyId,
-                    PropertyTitle = propertyLookup.GetValueOrDefault(x.PropertyId, "Unknown Property"),
-                    Status = x.Status,
-                    ConfidenceScore = x.ConfidenceScore,
-                    ReviewReason = x.ReviewReason,
-                    UpdatedAt = x.UpdatedAt
+                    var doc = documentLookup.GetValueOrDefault(x.RenterPropertyVerificationId);
+                    var extractedName = doc?.ExtractedName;
+                    var extractedAddress = doc?.ExtractedAddress;
+                    var property = propertyById.GetValueOrDefault(x.PropertyId);
+                    var providedAddress = property is null
+                        ? string.Empty
+                        : ResidencyVerificationDisplayHelper.FormatPropertyAddress(
+                            property.StreetAddress,
+                            property.City,
+                            property.StateOrRegion,
+                            property.PostalCode,
+                            property.Country);
+
+                    return new UserVerificationStatusDto
+                    {
+                        VerificationId = x.RenterPropertyVerificationId,
+                        PropertyId = x.PropertyId,
+                        PropertyTitle = property?.Title ?? "Unknown Property",
+                        Status = x.Status,
+                        ConfidenceScore = x.ConfidenceScore,
+                        ReviewReason = x.ReviewReason,
+                        ExtractedName = extractedName,
+                        ExtractedAddress = extractedAddress,
+                        ProvidedName = renter.DisplayName ?? string.Empty,
+                        ProvidedAddressSummary = providedAddress,
+                        CustomerSummary = ResidencyVerificationDisplayHelper.BuildCustomerSummary(
+                            x.Status,
+                            extractedName,
+                            extractedAddress),
+                        UpdatedAt = x.UpdatedAt
+                    };
                 })
                 .ToList()
         };
@@ -149,9 +183,8 @@ public sealed class ProfileService : IProfileService
         var existingDocs = await _dbContext.GetResidencyVerificationDocumentsAsync(cancellationToken);
         var duplicateHash = existingDocs.Any(x => x.FileHashSha256 == request.FileHashSha256);
 
-        var nameMatched = !string.IsNullOrWhiteSpace(renter.DisplayName)
-            && !string.IsNullOrWhiteSpace(request.ExtractedName)
-            && request.ExtractedName.Contains(renter.DisplayName, StringComparison.OrdinalIgnoreCase);
+        var nameScore = ComputeNameScore(renter.DisplayName, request.ExtractedName);
+        var nameMatched = nameScore > 0m;
         var extractedAddressNormalized = NormalizeForAddressMatch(request.ExtractedAddress);
         var propertyAddressNormalized = NormalizeForAddressMatch(property.StreetAddress);
         var extractedAddressNoUnit = RemoveUnitSegment(extractedAddressNormalized);
@@ -163,19 +196,26 @@ public sealed class ProfileService : IProfileService
             && !string.IsNullOrWhiteSpace(extractedAddressNoUnit)
             && !string.IsNullOrWhiteSpace(propertyAddressNoUnit)
             && extractedAddressNoUnit.Contains(propertyAddressNoUnit, StringComparison.OrdinalIgnoreCase);
-        var addressMatched = fullUnitAddressMatched || buildingOnlyAddressMatched;
+        var reverseAddressMatched = !fullUnitAddressMatched
+            && !buildingOnlyAddressMatched
+            && !string.IsNullOrWhiteSpace(extractedAddressNoUnit)
+            && !string.IsNullOrWhiteSpace(propertyAddressNoUnit)
+            && propertyAddressNoUnit.Contains(extractedAddressNoUnit, StringComparison.OrdinalIgnoreCase);
+        var addressMatched = fullUnitAddressMatched || buildingOnlyAddressMatched || reverseAddressMatched;
 
         var confidence = 0m;
-        if (nameMatched) confidence += 40m;
+        confidence += nameScore;
         if (addressMatched) confidence += 45m;
         if (request.ExtractedFromDate.HasValue || request.ExtractedToDate.HasValue) confidence += 15m;
-        if (duplicateHash) confidence -= 35m;
+        if (duplicateHash) confidence -= 10m;
         if (request.ParserConfidence < 0.35m) confidence -= 15m;
         else if (request.ParserConfidence >= 0.75m) confidence += 10m;
         confidence = Math.Clamp(confidence, 0m, 100m);
 
         var hasExtraction = !string.IsNullOrWhiteSpace(request.ExtractedName) || !string.IsNullOrWhiteSpace(request.ExtractedAddress);
         var status = !hasExtraction ? "pending_manual_review"
+            : !nameMatched ? "pending_manual_review"
+            : (nameMatched && addressMatched && confidence < 45m) ? "pending_manual_review"
             : confidence >= 75m ? "verified_stay"
             : confidence >= 45m ? "pending_manual_review"
             : "rejected";
@@ -193,8 +233,10 @@ public sealed class ProfileService : IProfileService
             ? "full building and unit match"
             : buildingOnlyAddressMatched
                 ? "building-only match (unit fallback)"
+                : reverseAddressMatched
+                    ? "building-only reverse match (unit fallback)"
                 : "no address match";
-        reason = $"{reason} Name match: {nameMatched}. Address match: {addressMatched} ({addressMatchMode}). Date evidence: {(request.ExtractedFromDate.HasValue || request.ExtractedToDate.HasValue)}. Duplicate document: {duplicateHash}.";
+        reason = $"{reason} Name match: {nameMatched} (score: {nameScore}). Address match: {addressMatched} ({addressMatchMode}). Date evidence: {(request.ExtractedFromDate.HasValue || request.ExtractedToDate.HasValue)}. Duplicate document: {duplicateHash}.";
 
         var verification = new RenterPropertyVerification
         {
@@ -279,4 +321,90 @@ public sealed class ProfileService : IProfileService
 
         return address.Trim();
     }
+
+    private static decimal ComputeNameScore(string? expectedName, string? extractedName)
+    {
+        if (string.IsNullOrWhiteSpace(expectedName) || string.IsNullOrWhiteSpace(extractedName))
+        {
+            return 0m;
+        }
+
+        var normalizedExpected = NormalizeForNameMatch(expectedName);
+        var normalizedExtracted = NormalizeForNameMatch(extractedName);
+        if (string.IsNullOrWhiteSpace(normalizedExpected) || string.IsNullOrWhiteSpace(normalizedExtracted))
+        {
+            return 0m;
+        }
+
+        if (normalizedExtracted.Contains(normalizedExpected, StringComparison.OrdinalIgnoreCase)
+            || normalizedExpected.Contains(normalizedExtracted, StringComparison.OrdinalIgnoreCase))
+        {
+            return 40m;
+        }
+
+        var expectedParts = normalizedExpected.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var extractedParts = normalizedExtracted.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (expectedParts.Length == 0 || extractedParts.Length == 0)
+        {
+            return 0m;
+        }
+
+        var matchedTokens = 0;
+        foreach (var expectedPart in expectedParts)
+        {
+            if (extractedParts.Any(extractedPart => ComputeLevenshteinDistance(expectedPart, extractedPart) <= 4))
+            {
+                matchedTokens++;
+            }
+        }
+
+        var coverage = (decimal)matchedTokens / expectedParts.Length;
+        if (coverage >= 1m)
+        {
+            return 40m;
+        }
+
+        if (coverage >= 0.67m)
+        {
+            return 28m;
+        }
+
+        if (coverage >= 0.34m)
+        {
+            return 20m;
+        }
+
+        return 0m;
+    }
+
+    private static string NormalizeForNameMatch(string value)
+    {
+        var upper = value.ToUpperInvariant();
+        var cleaned = NonAlphaNumericRegex.Replace(upper, " ");
+        return string.Join(" ", cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static int ComputeLevenshteinDistance(string left, string right)
+    {
+        if (left.Length == 0) return right.Length;
+        if (right.Length == 0) return left.Length;
+
+        var dp = new int[left.Length + 1, right.Length + 1];
+        for (var i = 0; i <= left.Length; i++) dp[i, 0] = i;
+        for (var j = 0; j <= right.Length; j++) dp[0, j] = j;
+
+        for (var i = 1; i <= left.Length; i++)
+        {
+            for (var j = 1; j <= right.Length; j++)
+            {
+                var cost = left[i - 1] == right[j - 1] ? 0 : 1;
+                dp[i, j] = Math.Min(
+                    Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
+                    dp[i - 1, j - 1] + cost);
+            }
+        }
+
+        return dp[left.Length, right.Length];
+    }
+
 }
