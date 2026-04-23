@@ -35,8 +35,31 @@ public sealed class ReviewsController : Controller
             SortBy = sortBy
         };
 
-        var reviews = await _reviewMvpService.GetReviewsAsync(query, cancellationToken);
+        var sortKey = string.IsNullOrWhiteSpace(sortBy) ? "newest" : sortBy;
 
+        ReviewListPageDto page;
+        try
+        {
+            page = await _reviewMvpService.GetReviewsAsync(query, cancellationToken);
+        }
+        catch (Exception)
+        {
+            var errorModel = new ReviewListViewModel
+            {
+                PropertyQuery = propertyQuery,
+                City = city,
+                MinRent = minRent,
+                MaxRent = maxRent,
+                MinRating = minRating,
+                SortBy = sortKey,
+                HasLoadError = true,
+                LoadErrorMessage = "We couldn't load reviews right now. Please try again in a moment.",
+                Reviews = []
+            };
+            return View(errorModel);
+        }
+
+        var s = page.Summary;
         var model = new ReviewListViewModel
         {
             PropertyQuery = propertyQuery,
@@ -44,15 +67,24 @@ public sealed class ReviewsController : Controller
             MinRent = minRent,
             MaxRent = maxRent,
             MinRating = minRating,
-            SortBy = string.IsNullOrWhiteSpace(sortBy) ? "newest" : sortBy,
-            Reviews = reviews.Select(x => new ReviewListItemViewModel
+            SortBy = sortKey,
+            Summary = new ReviewSummaryViewModel
+            {
+                TotalMatching = s.TotalMatching,
+                AverageRating = s.AverageRating,
+                VerifiedStaysCount = s.VerifiedStaysCount,
+                VerifiedStaysPercent = s.VerifiedStaysPercent
+            },
+            Reviews = page.Items.Select(x => new ReviewListItemViewModel
             {
                 PropertyId = x.PropertyId,
                 PropertyTitle = x.PropertyTitle,
                 StreetAddress = x.StreetAddress,
+                CommunityName = x.CommunityName,
                 City = x.City,
                 MonthlyRent = x.MonthlyRent,
                 AverageRating = x.AverageRating,
+                IsVerifiedStay = x.IsVerifiedStay,
                 VerificationBadge = x.VerificationBadge,
                 AnonymizedReviewer = x.AnonymizedReviewer,
                 ReviewText = x.ReviewText

@@ -38,6 +38,10 @@
                             Severity @(report.SeverityScore?.ToString("0.0") ?? "N/A")
                         </span>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(report.CommunityName))
+                    {
+                        <p class="mvp-subtext scam-report-card__community">@report.CommunityName</p>
+                    }
                     <p class="mvp-subtext">@report.City · @report.ScamType</p>
                     <p class="mvp-text">@report.Description</p>
                     <div class="mvp-tags">

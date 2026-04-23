@@ -3,6 +3,7 @@ using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.Home;
 using LeaseLense.Application.Properties;
+using LeaseLense.Domain.Entities;
 
 namespace LeaseLense.Application.Services;
 
@@ -18,6 +19,8 @@ public sealed class HomePageReadService : IHomePageReadService
     public async Task<HomePageDataDto> GetHomePageDataAsync(CancellationToken cancellationToken = default)
     {
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communityById = communities.ToDictionary(x => x.CommunityId);
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var reviewRatings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
         var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
@@ -37,6 +40,7 @@ public sealed class HomePageReadService : IHomePageReadService
             {
                 PropertyId = x.PropertyId,
                 Title = x.Title,
+                CommunityName = ResolveCommunityName(x, communityById),
                 StreetAddress = x.StreetAddress,
                 City = x.City,
                 Country = x.Country,
@@ -58,6 +62,7 @@ public sealed class HomePageReadService : IHomePageReadService
                 {
                     ReviewId = x.ReviewId,
                     PropertyTitle = property?.Title ?? "Unknown Property",
+                    CommunityName = ResolveCommunityName(property, communityById),
                     City = property?.City ?? "Unknown City",
                     AverageRating = reviewAverageRatings.GetValueOrDefault(x.ReviewId),
                     MonthlyRent = x.MonthlyRent,
@@ -83,6 +88,7 @@ public sealed class HomePageReadService : IHomePageReadService
                 {
                     ScamReportId = x.ScamReportId,
                     PropertyTitle = property?.Title ?? "Unknown Property",
+                    CommunityName = ResolveCommunityName(property, communityById),
                     City = property?.City ?? "Unknown City",
                     ScamType = DisplayTextFormatter.ToTitleLabel(x.ScamType),
                     SeverityScore = x.SeverityScore,
@@ -100,5 +106,15 @@ public sealed class HomePageReadService : IHomePageReadService
             Reviews = reviewDtos,
             ScamReports = scamDtos
         };
+    }
+
+    private static string ResolveCommunityName(Property? property, Dictionary<Guid, Community> communityById)
+    {
+        if (property?.CommunityId is not { } id)
+        {
+            return string.Empty;
+        }
+
+        return communityById.TryGetValue(id, out var c) ? (c.Name ?? string.Empty) : string.Empty;
     }
 }

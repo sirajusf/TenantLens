@@ -26,6 +26,7 @@ public class HomeController : Controller
                 {
                     PropertyId = x.PropertyId,
                     Title = x.Title,
+                    CommunityName = x.CommunityName,
                     StreetAddress = x.StreetAddress,
                     City = x.City,
                     Country = x.Country,
@@ -36,6 +37,7 @@ public class HomeController : Controller
                 .Select(x => new HomeReviewListItemViewModel
                 {
                     PropertyTitle = x.PropertyTitle,
+                    CommunityName = x.CommunityName,
                     City = x.City,
                     AverageRating = x.AverageRating,
                     MonthlyRent = x.MonthlyRent,
@@ -47,6 +49,7 @@ public class HomeController : Controller
                 .Select(x => new HomeScamReportListItemViewModel
                 {
                     PropertyTitle = x.PropertyTitle,
+                    CommunityName = x.CommunityName,
                     City = x.City,
                     ScamType = x.ScamType,
                     SeverityScore = x.SeverityScore,

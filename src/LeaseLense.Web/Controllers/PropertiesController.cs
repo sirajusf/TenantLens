@@ -32,6 +32,7 @@ public sealed class PropertiesController : Controller
             {
                 PropertyId = x.PropertyId,
                 Title = x.Title,
+                CommunityName = x.CommunityName,
                 StreetAddress = x.StreetAddress,
                 City = x.City,
                 Country = x.Country,
@@ -56,6 +57,7 @@ public sealed class PropertiesController : Controller
         {
             PropertyId = profile.PropertyId,
             Title = profile.Title,
+            CommunityName = profile.CommunityName,
             StreetAddress = profile.StreetAddress,
             City = profile.City,
             Country = profile.Country,

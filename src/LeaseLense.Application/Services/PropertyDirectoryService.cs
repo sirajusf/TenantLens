@@ -2,6 +2,7 @@ using LeaseLense.Application.Abstractions;
 using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.Properties;
+using LeaseLense.Domain.Entities;
 
 namespace LeaseLense.Application.Services;
 
@@ -18,6 +19,8 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
     {
         var normalizedQuery = Normalize(query.QueryText);
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communityById = communities.ToDictionary(x => x.CommunityId);
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
         var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
@@ -51,7 +54,12 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
             .Select(p => new
             {
                 Property = p,
-                MatchScore = CalculateMatchScore(normalizedQuery, p.Title, p.StreetAddress, p.City)
+                MatchScore = CalculateMatchScore(
+                    normalizedQuery,
+                    p.Title,
+                    p.StreetAddress,
+                    p.City,
+                    ResolveCommunityName(p, communityById))
             })
             .Where(x => string.IsNullOrWhiteSpace(normalizedQuery) || x.MatchScore > 0)
             .OrderByDescending(x => x.MatchScore)
@@ -63,6 +71,7 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
             {
                 PropertyId = x.Property.PropertyId,
                 Title = x.Property.Title,
+                CommunityName = ResolveCommunityName(x.Property, communityById),
                 StreetAddress = x.Property.StreetAddress,
                 City = x.Property.City,
                 Country = x.Property.Country,
@@ -87,6 +96,10 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
         {
             return null;
         }
+
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communityById = communities.ToDictionary(x => x.CommunityId);
+        var communityName = ResolveCommunityName(property, communityById);
 
         var reviews = (await _dbContext.GetReviewsAsync(cancellationToken))
             .Where(x => x.PropertyId == propertyId)
@@ -151,6 +164,7 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
         {
             PropertyId = property.PropertyId,
             Title = property.Title,
+            CommunityName = communityName,
             StreetAddress = property.StreetAddress,
             City = property.City,
             Country = property.Country,
@@ -174,7 +188,17 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
         return string.Join(" ", text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
-    private static int CalculateMatchScore(string query, string title, string streetAddress, string city)
+    private static string ResolveCommunityName(Property? property, Dictionary<Guid, Community> communityById)
+    {
+        if (property?.CommunityId is not { } id)
+        {
+            return string.Empty;
+        }
+
+        return communityById.TryGetValue(id, out var c) ? (c.Name ?? string.Empty) : string.Empty;
+    }
+
+    private static int CalculateMatchScore(string query, string title, string streetAddress, string city, string communityName)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -185,16 +209,21 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
         var titleNorm = Normalize(title);
         var streetNorm = Normalize(streetAddress);
         var cityNorm = Normalize(city);
+        var communityNorm = Normalize(communityName);
 
-        if (titleNorm == query || streetNorm == query)
+        if (titleNorm == query || streetNorm == query || communityNorm == query)
         {
             score += 100;
         }
-        if (titleNorm.StartsWith(query, StringComparison.Ordinal) || streetNorm.StartsWith(query, StringComparison.Ordinal))
+        if (titleNorm.StartsWith(query, StringComparison.Ordinal)
+            || streetNorm.StartsWith(query, StringComparison.Ordinal)
+            || communityNorm.StartsWith(query, StringComparison.Ordinal))
         {
             score += 70;
         }
-        if (titleNorm.Contains(query, StringComparison.Ordinal) || streetNorm.Contains(query, StringComparison.Ordinal))
+        if (titleNorm.Contains(query, StringComparison.Ordinal)
+            || streetNorm.Contains(query, StringComparison.Ordinal)
+            || communityNorm.Contains(query, StringComparison.Ordinal))
         {
             score += 40;
         }

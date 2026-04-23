@@ -46,17 +46,18 @@
               </div>
               <form class="search-bar" role="search" method="get" asp-controller="Properties" asp-action="Index">
               <label class="sr-only" for="property-search"
-                >Search properties by name or address</label
+                >Search properties by community, name, or address</label
               >
               <input
                 id="property-search"
                 type="search"
                 name="q"
-                placeholder="Search properties by name or address..."
+                placeholder="Search by community, name, or address..."
               />
               <button type="submit">Search Properties</button>
               </form>
               <div class="quick-chips">
+                <span>Community</span>
                 <span>Building</span>
                 <span>Address</span>
                 <span>Landlord</span>
@@ -182,6 +183,10 @@
                 <h3>@review.PropertyTitle</h3>
                 <p class="rating">@((review.AverageRating ?? 0).ToString("0.0"))/5</p>
               </div>
+              @if (!string.IsNullOrWhiteSpace(review.CommunityName))
+              {
+                <p class="home-card-community">@review.CommunityName</p>
+              }
               <p class="location">@review.City</p>
               <p class="review-quote">@review.ReviewText</p>
               <div class="tags">
@@ -212,6 +217,10 @@
                   Severity @((report.SeverityScore ?? 0).ToString("0.0"))
                 </span>
               </div>
+              @if (!string.IsNullOrWhiteSpace(report.CommunityName))
+              {
+                <p class="home-card-community">@report.CommunityName</p>
+              }
               <p class="location">@report.City · @report.ScamType</p>
               <p class="fraud-quote">@report.Description</p>
               @if (!string.IsNullOrWhiteSpace(report.VerificationBadge))
@@ -270,6 +279,10 @@
               <div class="avatar">@((string.IsNullOrWhiteSpace(property.Title) ? "P" : property.Title[..1]).ToUpperInvariant())</div>
               <div>
                 <h3>@property.Title</h3>
+                @if (!string.IsNullOrWhiteSpace(property.CommunityName))
+                {
+                  <p class="home-card-community">@property.CommunityName</p>
+                }
                 <p class="role">@property.StreetAddress</p>
                 <p>@property.City, @property.Country</p>
               </div>

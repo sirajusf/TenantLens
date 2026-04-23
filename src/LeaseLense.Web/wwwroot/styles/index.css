@@ -497,6 +497,18 @@ main {
   white-space: nowrap;
 }
 
+.home-card-community {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4a6b82;
+}
+
+.home-card-community + .location,
+.home-card-community + .role {
+  margin-top: 0.15rem;
+}
+
 .location {
   margin: 0.3rem 0 0;
   font-size: 0.83rem;
@@ -647,6 +659,7 @@ html[data-theme="dark"] .hero-purpose,
 html[data-theme="dark"] .panel-note,
 html[data-theme="dark"] .section-head p,
 html[data-theme="dark"] .section-head .section-link,
+html[data-theme="dark"] .home-card-community,
 html[data-theme="dark"] .location,
 html[data-theme="dark"] .role,
 html[data-theme="dark"] .stat-label,

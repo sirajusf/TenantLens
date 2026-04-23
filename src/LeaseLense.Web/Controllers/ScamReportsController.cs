@@ -25,6 +25,7 @@ public sealed class ScamReportsController : Controller
             {
                 PropertyId = x.PropertyId,
                 PropertyTitle = x.PropertyTitle,
+                CommunityName = x.CommunityName,
                 City = x.City,
                 ScamType = x.ScamType,
                 SeverityScore = x.SeverityScore,

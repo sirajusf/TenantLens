@@ -18,6 +18,8 @@ public sealed class ScamReportMvpService : IScamReportMvpService
     public async Task<IReadOnlyList<ScamReportListItemDto>> GetScamReportsAsync(CancellationToken cancellationToken = default)
     {
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communityById = communities.ToDictionary(x => x.CommunityId);
         var scams = await _dbContext.GetScamReportsAsync(cancellationToken);
         var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
         var propertyLookup = properties.ToDictionary(x => x.PropertyId);
@@ -27,6 +29,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             .Select(x =>
             {
                 propertyLookup.TryGetValue(x.PropertyId, out var property);
+                var communityName = ResolveCommunityName(property, communityById);
                 var hasVerifiedStay = verifications.Any(v =>
                     v.RenterId == x.RenterId
                     && v.PropertyId == x.PropertyId
@@ -36,6 +39,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
                     ScamReportId = x.ScamReportId,
                     PropertyId = x.PropertyId,
                     PropertyTitle = property?.Title ?? "Unknown Property",
+                    CommunityName = communityName,
                     City = property?.City ?? "Unknown City",
                     ScamType = DisplayTextFormatter.ToTitleLabel(x.ScamType),
                     SeverityScore = x.SeverityScore,
@@ -173,5 +177,15 @@ public sealed class ScamReportMvpService : IScamReportMvpService
 
         await _dbContext.AddPropertyAsync(property, cancellationToken);
         return property.PropertyId;
+    }
+
+    private static string ResolveCommunityName(Property? property, Dictionary<Guid, Community> communityById)
+    {
+        if (property?.CommunityId is not { } id)
+        {
+            return string.Empty;
+        }
+
+        return communityById.TryGetValue(id, out var c) ? (c.Name ?? string.Empty) : string.Empty;
     }
 }

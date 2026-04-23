@@ -6,6 +6,10 @@
 <section class="mvp-shell reveal">
     <div class="mvp-hero">
         <h1>@Model.Title</h1>
+        @if (!string.IsNullOrWhiteSpace(Model.CommunityName))
+        {
+            <p class="mvp-subtext property-hero-community">@Model.CommunityName</p>
+        }
         <p>@Model.StreetAddress, @Model.City, @Model.Country</p>
         <div class="mvp-tags">
             <span class="mvp-badge primary">Rating @(Model.AverageRating?.ToString("0.0") ?? "N/A")</span>

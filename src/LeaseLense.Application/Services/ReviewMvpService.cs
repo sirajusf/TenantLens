@@ -15,9 +15,11 @@ public sealed class ReviewMvpService : IReviewMvpService
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<ReviewListItemDto>> GetReviewsAsync(ReviewQueryDto query, CancellationToken cancellationToken = default)
+    public async Task<ReviewListPageDto> GetReviewsAsync(ReviewQueryDto query, CancellationToken cancellationToken = default)
     {
         var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communityById = communities.ToDictionary(x => x.CommunityId);
         var renters = await _dbContext.GetRentersAsync(cancellationToken);
         var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
         var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
@@ -34,6 +36,7 @@ public sealed class ReviewMvpService : IReviewMvpService
             {
                 propertyLookup.TryGetValue(review.PropertyId, out var property);
                 renterLookup.TryGetValue(review.RenterId, out var renter);
+                var communityName = ResolveCommunityName(property, communityById);
 
                 var reviewerAlias = AnonymizedNameGenerator.Generate(review.ReviewId);
                 var hasVerifiedStay = verifications.Any(v =>
@@ -49,15 +52,18 @@ public sealed class ReviewMvpService : IReviewMvpService
                         PropertyId = review.PropertyId,
                         PropertyTitle = property?.Title ?? "Unknown Property",
                         StreetAddress = property?.StreetAddress ?? "Unknown Address",
+                        CommunityName = communityName,
                         City = property?.City ?? "Unknown City",
                         MonthlyRent = review.MonthlyRent,
                         AverageRating = averageRatings.GetValueOrDefault(review.ReviewId, 0m),
+                        IsVerifiedStay = hasVerifiedStay,
                         VerificationBadge = hasVerifiedStay ? "Verified Stay" : "Unverified Stay",
                         AnonymizedReviewer = reviewerAlias,
                         ReviewText = string.IsNullOrWhiteSpace(review.ReviewText)
                             ? "No review details provided."
                             : review.ReviewText!
                     },
+                    CommunityName = communityName,
                     review.CreatedAt
                 };
             });
@@ -68,7 +74,9 @@ public sealed class ReviewMvpService : IReviewMvpService
             shaped = shaped.Where(x =>
                 x.Review.PropertyTitle.Contains(queryText, StringComparison.OrdinalIgnoreCase)
                 || x.Review.StreetAddress.Contains(queryText, StringComparison.OrdinalIgnoreCase)
-                || x.Review.City.Contains(queryText, StringComparison.OrdinalIgnoreCase));
+                || x.Review.City.Contains(queryText, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrEmpty(x.CommunityName)
+                    && x.CommunityName.Contains(queryText, StringComparison.OrdinalIgnoreCase)));
         }
 
         if (!string.IsNullOrWhiteSpace(query.City))
@@ -91,14 +99,36 @@ public sealed class ReviewMvpService : IReviewMvpService
             shaped = shaped.Where(x => x.Review.AverageRating >= query.MinRating.Value);
         }
 
-        shaped = query.SortBy?.ToLowerInvariant() switch
+        var filtered = shaped.ToList();
+        var total = filtered.Count;
+        var verifiedCount = filtered.Count(x => x.Review.IsVerifiedStay);
+        var avgRating = total == 0
+            ? 0m
+            : Math.Round(filtered.Average(x => x.Review.AverageRating), 1);
+        var verifiedPercent = total == 0
+            ? 0m
+            : Math.Round(100m * verifiedCount / total, 0);
+
+        var ordered = query.SortBy?.ToLowerInvariant() switch
         {
-            "rating" => shaped.OrderByDescending(x => x.Review.AverageRating).ThenBy(x => x.Review.PropertyTitle),
-            "rent" => shaped.OrderBy(x => x.Review.MonthlyRent ?? decimal.MaxValue).ThenBy(x => x.Review.PropertyTitle),
-            _ => shaped.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Review.PropertyTitle)
+            "rating" => filtered.OrderByDescending(x => x.Review.AverageRating).ThenBy(x => x.Review.PropertyTitle),
+            "rent" => filtered.OrderBy(x => x.Review.MonthlyRent ?? decimal.MaxValue).ThenBy(x => x.Review.PropertyTitle),
+            _ => filtered.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Review.PropertyTitle)
         };
 
-        return shaped.Select(x => x.Review).Take(50).ToList();
+        var items = ordered.Select(x => x.Review).Take(50).ToList();
+
+        return new ReviewListPageDto
+        {
+            Summary = new ReviewListSummaryDto
+            {
+                TotalMatching = total,
+                AverageRating = avgRating,
+                VerifiedStaysCount = verifiedCount,
+                VerifiedStaysPercent = verifiedPercent
+            },
+            Items = items
+        };
     }
 
     public async Task<ReviewCreateMetadataDto> GetCreateMetadataAsync(string reporterEmail, CancellationToken cancellationToken = default)
@@ -235,5 +265,15 @@ public sealed class ReviewMvpService : IReviewMvpService
 
         await _dbContext.AddPropertyAsync(property, cancellationToken);
         return property.PropertyId;
+    }
+
+    private static string ResolveCommunityName(Property? property, Dictionary<Guid, Community> communityById)
+    {
+        if (property?.CommunityId is not { } id)
+        {
+            return string.Empty;
+        }
+
+        return communityById.TryGetValue(id, out var c) ? (c.Name ?? string.Empty) : string.Empty;
     }
 }

@@ -4,6 +4,7 @@ public sealed class HomeReviewListItemDto
 {
     public Guid ReviewId { get; init; }
     public string PropertyTitle { get; init; } = string.Empty;
+    public string CommunityName { get; init; } = string.Empty;
     public string City { get; init; } = string.Empty;
     public decimal? AverageRating { get; init; }
     public decimal? MonthlyRent { get; init; }

@@ -9,7 +9,7 @@
         <p>Search by property name or address, then open the property page for full reviews, reports, and reputation signals.</p>
         <form method="get" class="search-bar" role="search" asp-controller="Properties" asp-action="Index">
             <label class="sr-only" for="property-directory-search">Search properties by name or address</label>
-            <input id="property-directory-search" type="search" name="q" value="@Model.QueryText" placeholder="Search properties by name or address..." />
+            <input id="property-directory-search" type="search" name="q" value="@Model.QueryText" placeholder="Search by community, name, or address..." />
             <button type="submit">Search Properties</button>
         </form>
     </div>
@@ -35,6 +35,10 @@
                             <span class="mvp-badge primary">@property.AverageRating.Value.ToString("0.0")/5</span>
                         }
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(property.CommunityName))
+                    {
+                        <p class="mvp-subtext property-community">@property.CommunityName</p>
+                    }
                     <p class="mvp-subtext property-address">@property.StreetAddress</p>
                     <p class="mvp-text property-location">@property.City, @property.Country</p>
                     <div class="mvp-tags">

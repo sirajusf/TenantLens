@@ -8,5 +8,8 @@ public sealed class ReviewListViewModel
     public decimal? MaxRent { get; init; }
     public decimal? MinRating { get; init; }
     public string SortBy { get; init; } = "newest";
+    public ReviewSummaryViewModel? Summary { get; init; }
+    public bool HasLoadError { get; init; }
+    public string? LoadErrorMessage { get; init; }
     public IReadOnlyList<ReviewListItemViewModel> Reviews { get; init; } = [];
 }

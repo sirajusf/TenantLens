@@ -25,6 +25,8 @@
   --orb-1: rgba(70, 140, 231, 0.28);
   --orb-2: rgba(130, 104, 245, 0.24);
   --orb-3: rgba(26, 197, 178, 0.2);
+  /* Sticky panels below .site-header: .nav-wrapper min-height 72px + 1px border */
+  --site-header-sticky-offset: 73px;
 }
 
 * {
@@ -183,6 +185,21 @@ main > section {
 .main-nav a.active {
   color: #fff;
   background: linear-gradient(130deg, var(--accent-indigo), var(--accent-cyan));
+}
+
+.main-nav a.active:hover {
+  color: #fff;
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.main-nav a.active:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+html[data-theme="dark"] .main-nav a.active:focus-visible {
+  outline-color: rgba(200, 225, 255, 0.95);
 }
 
 .theme-toggle {
