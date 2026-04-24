@@ -96,7 +96,7 @@ public sealed class ReviewsController : Controller
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> Create(CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(Guid? propertyId, CancellationToken cancellationToken)
     {
         var reporterEmail = User.Identity?.Name;
         if (string.IsNullOrWhiteSpace(reporterEmail))
@@ -104,7 +104,7 @@ public sealed class ReviewsController : Controller
             return Challenge();
         }
         var metadata = await _reviewMvpService.GetCreateMetadataAsync(reporterEmail, cancellationToken);
-        return View(ToCreatePageModel(new CreateReviewViewModel(), metadata));
+        return View(ToCreatePageModel(ApplyPreferredProperty(new CreateReviewViewModel(), metadata, propertyId), metadata));
     }
 
     [HttpPost]
@@ -165,6 +165,29 @@ public sealed class ReviewsController : Controller
                     Label = x.Label
                 })
                 .ToList()
+        };
+    }
+
+    private static CreateReviewViewModel ApplyPreferredProperty(
+        CreateReviewViewModel form,
+        ReviewCreateMetadataDto metadata,
+        Guid? preferredPropertyId)
+    {
+        if (!preferredPropertyId.HasValue)
+        {
+            return form;
+        }
+
+        var hasProperty = metadata.Properties.Any(x => x.PropertyId == preferredPropertyId.Value);
+        if (!hasProperty)
+        {
+            return form;
+        }
+
+        return new CreateReviewViewModel
+        {
+            PropertyId = preferredPropertyId.Value,
+            PropertyNotListed = false
         };
     }
 }

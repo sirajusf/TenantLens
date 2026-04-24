@@ -98,5 +98,13 @@ if (shouldEnsureIdentitySchema)
     await IdentitySchemaInitializer.EnsureCreatedAsync(authDbContext);
 }
 
-
-await app.RunAsync();
+// wrap start to persist startup exception
+try
+{
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    System.IO.File.WriteAllText(System.IO.Path.Combine(builder.Environment.ContentRootPath, "startup-errors.txt"), ex.ToString());
+    throw;
+}

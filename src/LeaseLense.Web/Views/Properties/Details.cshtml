@@ -29,6 +29,10 @@
 
     <div class="section-head mt-3">
         <h2>Reviews</h2>
+        <a class="section-link"
+           asp-controller="Reviews"
+           asp-action="Create"
+           asp-route-propertyId="@Model.PropertyId">Add review</a>
     </div>
     @if (!Model.Reviews.Any())
     {
@@ -63,6 +67,10 @@
 
     <div class="section-head mt-4">
         <h2>Reports</h2>
+        <a class="section-link"
+           asp-controller="ScamReports"
+           asp-action="Create"
+           asp-route-propertyId="@Model.PropertyId">Report scam</a>
     </div>
     @if (!Model.ScamReports.Any())
     {

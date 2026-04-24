@@ -40,7 +40,7 @@ public sealed class ScamReportsController : Controller
 
     [HttpGet]
     [Authorize]
-    public async Task<IActionResult> Create(CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(Guid? propertyId, CancellationToken cancellationToken)
     {
         var reporterEmail = User.Identity?.Name;
         if (string.IsNullOrWhiteSpace(reporterEmail))
@@ -48,7 +48,7 @@ public sealed class ScamReportsController : Controller
             return Challenge();
         }
         var metadata = await _scamReportMvpService.GetFormMetadataAsync(reporterEmail, cancellationToken);
-        return View(ToCreatePageModel(new CreateScamReportViewModel(), metadata));
+        return View(ToCreatePageModel(ApplyPreferredProperty(new CreateScamReportViewModel(), metadata, propertyId), metadata));
     }
 
     [HttpPost]
@@ -107,6 +107,29 @@ public sealed class ScamReportsController : Controller
             Properties = metadata.Properties
                 .Select(x => new ScamReportOptionViewModel { Id = x.Id, Label = x.Label })
                 .ToList()
+        };
+    }
+
+    private static CreateScamReportViewModel ApplyPreferredProperty(
+        CreateScamReportViewModel form,
+        ScamReportFormMetadataDto metadata,
+        Guid? preferredPropertyId)
+    {
+        if (!preferredPropertyId.HasValue)
+        {
+            return form;
+        }
+
+        var hasProperty = metadata.Properties.Any(x => x.Id == preferredPropertyId.Value);
+        if (!hasProperty)
+        {
+            return form;
+        }
+
+        return new CreateScamReportViewModel
+        {
+            PropertyId = preferredPropertyId.Value,
+            PropertyNotListed = false
         };
     }
 }

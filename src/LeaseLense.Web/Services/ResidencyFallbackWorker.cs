@@ -75,7 +75,8 @@ public sealed class ResidencyFallbackWorker : BackgroundService
             ParserConfidence = extraction.ParserConfidence
         }, cancellationToken);
 
-        if (string.Equals(result.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(result.Status, "verified_stay", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(result.Status, "pending_manual_review", StringComparison.OrdinalIgnoreCase)
             || string.Equals(result.Status, "rejected", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogInformation(
