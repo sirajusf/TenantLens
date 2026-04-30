@@ -17,6 +17,29 @@
         </div>
     </div>
 
+    <form method="get" class="mvp-hero reviews-filter-panel mt-3" role="search" aria-label="Filter scam reports">
+        <div class="reviews-filters__grid">
+            <div class="mvp-field">
+                <label class="reviews-filters__label" for="scam-filter-q">Search</label>
+                <input class="mvp-input" id="scam-filter-q" name="q" value="@Model.QueryText"
+                       placeholder="Property, address, type, or description" autocomplete="off" />
+            </div>
+            <div class="mvp-field">
+                <label class="reviews-filters__label" for="scam-filter-city">City</label>
+                <input class="mvp-input" id="scam-filter-city" name="city" value="@Model.City"
+                       placeholder="Exact city match" autocomplete="off" />
+            </div>
+            <div class="mvp-field">
+                <label class="reviews-filters__label" for="scam-filter-min-severity">Min severity</label>
+                <input class="mvp-input" id="scam-filter-min-severity" name="minSeverity" type="number" step="0.1" min="0"
+                       value="@(Model.MinSeverity?.ToString() ?? "")" placeholder="e.g. 3" />
+            </div>
+            <div class="mvp-field" style="align-self: end;">
+                <button type="submit" class="mvp-btn">Apply filters</button>
+            </div>
+        </div>
+    </form>
+
     @if (TempData["ScamReportSuccess"] is string successMessage)
     {
         <div class="mvp-empty">@successMessage</div>

@@ -15,6 +15,7 @@ public static class KeyVaultSecretLoader
 {
     public static async Task ApplyAsync(IConfiguration configuration, ILogger? logger = null, CancellationToken cancellationToken = default)
     {
+        var failFast = configuration.GetValue<bool?>("KeyVault:FailFast") ?? false;
         var vaultUri = configuration["KeyVault:VaultUri"]?.Trim();
         if (string.IsNullOrEmpty(vaultUri))
         {
@@ -35,7 +36,21 @@ public static class KeyVaultSecretLoader
             return;
         }
 
-        var client = new SecretClient(uri, new DefaultAzureCredential());
+        SecretClient client;
+        try
+        {
+            client = new SecretClient(uri, new DefaultAzureCredential());
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to initialize Key Vault client. Falling back to existing configuration values.");
+            if (failFast)
+            {
+                throw;
+            }
+
+            return;
+        }
 
         foreach (var map in mappings)
         {
@@ -58,7 +73,10 @@ public static class KeyVaultSecretLoader
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Failed to load Key Vault secret for configuration key {ConfigKey} (secret name: {SecretName}).", configurationKey, secretName);
-                throw;
+                if (failFast)
+                {
+                    throw;
+                }
             }
         }
     }

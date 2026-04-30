@@ -44,7 +44,7 @@
 
 Non-secrets (`Endpoint`, `ModelId`, `Enabled`, `TimeoutSeconds`, `LlmFoundryFileLogging`, etc.) stay in **appsettings** or **host configuration** so you can change behavior without storing them as Key Vault secrets.
 
-**Security:** secret values are never written to logs. If a secret cannot be loaded, startup fails with an error that includes the **configuration key** and **secret name** only—not the value.
+**Security:** secret values are never written to logs. By default, if a secret cannot be loaded, the app logs the issue and continues with existing configuration values (for example from `appsettings` or environment variables). Set `KeyVault:FailFast` to `true` when you want startup to fail immediately on Key Vault errors.
 
 **Rotation:** rotate the secret in Key Vault, then **restart** the app so the loader runs again and picks up the new value.
 

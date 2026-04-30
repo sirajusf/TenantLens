@@ -9,34 +9,37 @@ namespace LeaseLense.Application.Services;
 public sealed class ReviewMvpService : IReviewMvpService
 {
     private readonly ILeaseLensDbContext _dbContext;
+    private readonly ICoreSearchService _coreSearch;
 
-    public ReviewMvpService(ILeaseLensDbContext dbContext)
+    public ReviewMvpService(ILeaseLensDbContext dbContext, ICoreSearchService coreSearch)
     {
         _dbContext = dbContext;
+        _coreSearch = coreSearch;
     }
 
     public async Task<ReviewListPageDto> GetReviewsAsync(ReviewQueryDto query, CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
-        var communityById = communities.ToDictionary(x => x.CommunityId);
-        var renters = await _dbContext.GetRentersAsync(cancellationToken);
-        var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
+        var matches = await _coreSearch.SearchReviewsAsync(
+            query.PropertyQuery,
+            query.City,
+            query.MinRent,
+            query.MaxRent,
+            query.MinRating,
+            cancellationToken);
+
         var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
         var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
 
-        var propertyLookup = properties.ToDictionary(x => x.PropertyId);
-        var renterLookup = renters.ToDictionary(x => x.RenterId);
         var averageRatings = ratings
             .GroupBy(x => x.ReviewId)
             .ToDictionary(x => x.Key, x => Math.Round((decimal)x.Average(y => y.RatingScore), 1));
 
-        var shaped = reviews
-            .Select(review =>
+        var shaped = matches
+            .Select(m =>
             {
-                propertyLookup.TryGetValue(review.PropertyId, out var property);
-                renterLookup.TryGetValue(review.RenterId, out var renter);
-                var communityName = ResolveCommunityName(property, communityById);
+                var review = m.Review;
+                var property = m.Property;
+                var communityName = m.CommunityName;
 
                 var reviewerAlias = AnonymizedNameGenerator.Generate(review.ReviewId);
                 var hasVerifiedStay = verifications.Any(v =>
@@ -63,43 +66,12 @@ public sealed class ReviewMvpService : IReviewMvpService
                             ? "No review details provided."
                             : review.ReviewText!
                     },
-                    CommunityName = communityName,
                     review.CreatedAt
                 };
-            });
+            })
+            .ToList();
 
-        if (!string.IsNullOrWhiteSpace(query.PropertyQuery))
-        {
-            var queryText = query.PropertyQuery.Trim();
-            shaped = shaped.Where(x =>
-                x.Review.PropertyTitle.Contains(queryText, StringComparison.OrdinalIgnoreCase)
-                || x.Review.StreetAddress.Contains(queryText, StringComparison.OrdinalIgnoreCase)
-                || x.Review.City.Contains(queryText, StringComparison.OrdinalIgnoreCase)
-                || (!string.IsNullOrEmpty(x.CommunityName)
-                    && x.CommunityName.Contains(queryText, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.City))
-        {
-            shaped = shaped.Where(x => string.Equals(x.Review.City, query.City, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (query.MinRent.HasValue)
-        {
-            shaped = shaped.Where(x => x.Review.MonthlyRent.HasValue && x.Review.MonthlyRent.Value >= query.MinRent.Value);
-        }
-
-        if (query.MaxRent.HasValue)
-        {
-            shaped = shaped.Where(x => x.Review.MonthlyRent.HasValue && x.Review.MonthlyRent.Value <= query.MaxRent.Value);
-        }
-
-        if (query.MinRating.HasValue)
-        {
-            shaped = shaped.Where(x => x.Review.AverageRating >= query.MinRating.Value);
-        }
-
-        var filtered = shaped.ToList();
+        var filtered = shaped;
         var total = filtered.Count;
         var verifiedCount = filtered.Count(x => x.Review.IsVerifiedStay);
         var avgRating = total == 0

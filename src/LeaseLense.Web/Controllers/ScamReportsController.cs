@@ -16,11 +16,18 @@ public sealed class ScamReportsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        string? q,
+        string? city,
+        decimal? minSeverity,
+        CancellationToken cancellationToken)
     {
-        var reports = await _scamReportMvpService.GetScamReportsAsync(cancellationToken);
+        var reports = await _scamReportMvpService.GetScamReportsAsync(q, city, minSeverity, cancellationToken);
         var model = new ScamReportIndexViewModel
         {
+            QueryText = q,
+            City = city,
+            MinSeverity = minSeverity,
             Reports = reports.Select(x => new ScamReportListItemViewModel
             {
                 PropertyId = x.PropertyId,

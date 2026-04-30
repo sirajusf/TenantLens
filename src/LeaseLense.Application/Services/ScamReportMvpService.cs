@@ -9,27 +9,35 @@ namespace LeaseLense.Application.Services;
 public sealed class ScamReportMvpService : IScamReportMvpService
 {
     private readonly ILeaseLensDbContext _dbContext;
+    private readonly ICoreSearchService _coreSearch;
 
-    public ScamReportMvpService(ILeaseLensDbContext dbContext)
+    public ScamReportMvpService(ILeaseLensDbContext dbContext, ICoreSearchService coreSearch)
     {
         _dbContext = dbContext;
+        _coreSearch = coreSearch;
     }
 
-    public async Task<IReadOnlyList<ScamReportListItemDto>> GetScamReportsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ScamReportListItemDto>> GetScamReportsAsync(
+        string? queryText = null,
+        string? city = null,
+        decimal? minSeverity = null,
+        CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
-        var communityById = communities.ToDictionary(x => x.CommunityId);
-        var scams = await _dbContext.GetScamReportsAsync(cancellationToken);
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
-        var propertyLookup = properties.ToDictionary(x => x.PropertyId);
+        var matches = await _coreSearch.SearchScamReportsAsync(
+            queryText,
+            city,
+            minSeverity,
+            limit: 100,
+            cancellationToken);
 
-        return scams
-            .OrderByDescending(x => x.DateReported)
-            .Select(x =>
+        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+
+        return matches
+            .Select(m =>
             {
-                propertyLookup.TryGetValue(x.PropertyId, out var property);
-                var communityName = ResolveCommunityName(property, communityById);
+                var x = m.ScamReport;
+                var property = m.Property;
+                var communityName = m.CommunityName;
                 var hasVerifiedStay = verifications.Any(v =>
                     v.RenterId == x.RenterId
                     && v.PropertyId == x.PropertyId
@@ -48,7 +56,6 @@ public sealed class ScamReportMvpService : IScamReportMvpService
                     VerificationBadge = hasVerifiedStay ? "Verified Stay" : "Unverified Stay"
                 };
             })
-            .Take(100)
             .ToList();
     }
 

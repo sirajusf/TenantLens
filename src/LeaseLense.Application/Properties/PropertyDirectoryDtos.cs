@@ -22,7 +22,6 @@ public sealed class PropertyDirectoryItemDto
     public string Country { get; init; } = string.Empty;
     public decimal? AverageRating { get; init; }
     public decimal? AverageScamSeverity { get; init; }
-    public int MatchScore { get; init; }
 }
 
 public sealed class PropertyProfileDto

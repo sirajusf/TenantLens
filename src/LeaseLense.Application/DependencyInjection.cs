@@ -9,6 +9,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IPropertyReadService, PropertyReadService>();
+        services.AddScoped<ICoreSearchService, CoreSearchService>();
         services.AddScoped<IPropertyDirectoryService, PropertyDirectoryService>();
         services.AddScoped<IHomePageReadService, HomePageReadService>();
         services.AddScoped<IReviewMvpService, ReviewMvpService>();
