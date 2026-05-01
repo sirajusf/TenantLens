@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.ScamReports;
 using LeaseLense.Domain.Entities;
@@ -8,12 +7,12 @@ namespace LeaseLense.Application.Services;
 
 public sealed class ScamReportMvpService : IScamReportMvpService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
     private readonly ICoreSearchService _coreSearch;
 
-    public ScamReportMvpService(ILeaseLensDbContext dbContext, ICoreSearchService coreSearch)
+    public ScamReportMvpService(ILeaseLensRepository repository, ICoreSearchService coreSearch)
     {
-        _dbContext = dbContext;
+        _repository = repository;
         _coreSearch = coreSearch;
     }
 
@@ -30,7 +29,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             limit: 100,
             cancellationToken);
 
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         return matches
             .Select(m =>
@@ -61,12 +60,12 @@ public sealed class ScamReportMvpService : IScamReportMvpService
 
     public async Task<ScamReportFormMetadataDto> GetFormMetadataAsync(string reporterEmail, CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
         var canSubmit = false;
         var restrictionMessage = "You can submit for any property. Verified Stay applies only to your matched verified residency.";
         if (!string.IsNullOrWhiteSpace(reporterEmail))
         {
-            var renter = await _dbContext.GetRenterByEmailAsync(reporterEmail.Trim(), cancellationToken);
+            var renter = await _repository.GetRenterByEmailAsync(reporterEmail.Trim(), cancellationToken);
             if (renter is not null)
             {
                 canSubmit = true;
@@ -95,7 +94,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             throw new InvalidOperationException("Reporter email is required.");
         }
 
-        var renter = await _dbContext.GetRenterByEmailAsync(request.ReporterEmail.Trim(), cancellationToken);
+        var renter = await _repository.GetRenterByEmailAsync(request.ReporterEmail.Trim(), cancellationToken);
         if (renter is null)
         {
             throw new InvalidOperationException("Authenticated renter profile was not found.");
@@ -120,8 +119,8 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _dbContext.AddScamReportAsync(report, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _repository.AddScamReportAsync(report, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Guid> CreateOrResolvePropertyAsync(
@@ -143,7 +142,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
         var street = request.NewPropertyStreetAddress.Trim();
         var city = request.NewPropertyCity.Trim();
         var country = request.NewPropertyCountry.Trim();
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var community = communities.FirstOrDefault(x =>
             string.Equals(x.Name, communityName, StringComparison.OrdinalIgnoreCase));
         if (community is null)
@@ -156,10 +155,10 @@ public sealed class ScamReportMvpService : IScamReportMvpService
                 Country = country,
                 CreatedAt = DateTime.UtcNow
             };
-            await _dbContext.AddCommunityAsync(community, cancellationToken);
+            await _repository.AddCommunityAsync(community, cancellationToken);
         }
 
-        var existingProperty = (await _dbContext.GetPropertiesAsync(cancellationToken))
+        var existingProperty = (await _repository.GetPropertiesAsync(cancellationToken))
             .FirstOrDefault(x =>
                 string.Equals(x.StreetAddress, street, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(x.City, city, StringComparison.OrdinalIgnoreCase)
@@ -182,7 +181,7 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _dbContext.AddPropertyAsync(property, cancellationToken);
+        await _repository.AddPropertyAsync(property, cancellationToken);
         return property.PropertyId;
     }
 

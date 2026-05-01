@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Search;
 using LeaseLense.Domain.Entities;
 
@@ -7,11 +6,11 @@ namespace LeaseLense.Application.Services;
 
 public sealed class CoreSearchService : ICoreSearchService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public CoreSearchService(ILeaseLensDbContext dbContext)
+    public CoreSearchService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<IReadOnlyList<PropertyMatch>> SearchPropertiesAsync(
@@ -20,8 +19,8 @@ public sealed class CoreSearchService : ICoreSearchService
         int limit,
         CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
 
         var capped = Math.Clamp(limit, 1, 200);
@@ -63,11 +62,11 @@ public sealed class CoreSearchService : ICoreSearchService
         decimal? minRating,
         CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
-        var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
-        var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
+        var reviews = await _repository.GetReviewsAsync(cancellationToken);
+        var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
 
         var propertyLookup = properties.ToDictionary(x => x.PropertyId);
         var averageRatings = ratings
@@ -139,10 +138,10 @@ public sealed class CoreSearchService : ICoreSearchService
         int limit,
         CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
-        var scams = await _dbContext.GetScamReportsAsync(cancellationToken);
+        var scams = await _repository.GetScamReportsAsync(cancellationToken);
 
         var propertyLookup = properties.ToDictionary(x => x.PropertyId);
 

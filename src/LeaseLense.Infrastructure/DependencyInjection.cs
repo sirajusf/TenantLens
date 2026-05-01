@@ -1,4 +1,4 @@
-using LeaseLense.Application.Abstractions.Persistence;
+using LeaseLense.Application.Abstractions;
 using LeaseLense.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,7 +40,7 @@ public static class DependencyInjection
             });
         });
 
-        services.AddScoped<ILeaseLensDbContext>(sp => sp.GetRequiredService<LeaseLensDbContext>());
+        services.AddScoped<ILeaseLensRepository>(sp => sp.GetRequiredService<LeaseLensDbContext>());
 
         return services;
     }

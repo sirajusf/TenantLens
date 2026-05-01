@@ -1,28 +1,27 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Domain.Entities;
 
 namespace LeaseLense.Application.Services;
 
 public sealed class UserAccountService : IUserAccountService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public UserAccountService(ILeaseLensDbContext dbContext)
+    public UserAccountService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<Guid> EnsureRenterForEmailAsync(string email, string? displayName, bool emailVerified, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim();
-        var existing = await _dbContext.GetRenterByEmailAsync(normalizedEmail, cancellationToken);
+        var existing = await _repository.GetRenterByEmailAsync(normalizedEmail, cancellationToken);
         if (existing is not null)
         {
             if (emailVerified && !existing.EmailVerified)
             {
                 existing.EmailVerified = true;
-                await _dbContext.SaveChangesAsync(cancellationToken);
+                await _repository.SaveChangesAsync(cancellationToken);
             }
             return existing.RenterId;
         }
@@ -37,14 +36,14 @@ public sealed class UserAccountService : IUserAccountService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _dbContext.AddRenterAsync(renter, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _repository.AddRenterAsync(renter, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
         return renter.RenterId;
     }
 
     public async Task<Guid?> GetRenterIdByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        var renter = await _dbContext.GetRenterByEmailAsync(email.Trim(), cancellationToken);
+        var renter = await _repository.GetRenterByEmailAsync(email.Trim(), cancellationToken);
         return renter?.RenterId;
     }
 }

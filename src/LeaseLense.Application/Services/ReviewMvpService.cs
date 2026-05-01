@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.Reviews;
 using LeaseLense.Domain.Entities;
@@ -8,12 +7,12 @@ namespace LeaseLense.Application.Services;
 
 public sealed class ReviewMvpService : IReviewMvpService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
     private readonly ICoreSearchService _coreSearch;
 
-    public ReviewMvpService(ILeaseLensDbContext dbContext, ICoreSearchService coreSearch)
+    public ReviewMvpService(ILeaseLensRepository repository, ICoreSearchService coreSearch)
     {
-        _dbContext = dbContext;
+        _repository = repository;
         _coreSearch = coreSearch;
     }
 
@@ -27,8 +26,8 @@ public sealed class ReviewMvpService : IReviewMvpService
             query.MinRating,
             cancellationToken);
 
-        var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var averageRatings = ratings
             .GroupBy(x => x.ReviewId)
@@ -105,12 +104,12 @@ public sealed class ReviewMvpService : IReviewMvpService
 
     public async Task<ReviewCreateMetadataDto> GetCreateMetadataAsync(string reporterEmail, CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
         var canSubmit = false;
         var restrictionMessage = "You can submit for any property. Verified Stay applies only to your matched verified residency.";
         if (!string.IsNullOrWhiteSpace(reporterEmail))
         {
-            var renter = await _dbContext.GetRenterByEmailAsync(reporterEmail.Trim(), cancellationToken);
+            var renter = await _repository.GetRenterByEmailAsync(reporterEmail.Trim(), cancellationToken);
             if (renter is not null)
             {
                 canSubmit = true;
@@ -140,7 +139,7 @@ public sealed class ReviewMvpService : IReviewMvpService
             throw new InvalidOperationException("Reporter email is required.");
         }
 
-        var renter = await _dbContext.GetRenterByEmailAsync(request.ReporterEmail.Trim(), cancellationToken);
+        var renter = await _repository.GetRenterByEmailAsync(request.ReporterEmail.Trim(), cancellationToken);
         if (renter is null)
         {
             throw new InvalidOperationException("Authenticated renter profile was not found.");
@@ -172,9 +171,9 @@ public sealed class ReviewMvpService : IReviewMvpService
             RatingScore = request.OverallRating
         };
 
-        await _dbContext.AddReviewAsync(review, cancellationToken);
-        await _dbContext.AddReviewRatingAsync(rating, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _repository.AddReviewAsync(review, cancellationToken);
+        await _repository.AddReviewRatingAsync(rating, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Guid> CreateOrResolvePropertyAsync(
@@ -196,7 +195,7 @@ public sealed class ReviewMvpService : IReviewMvpService
         var street = request.NewPropertyStreetAddress.Trim();
         var city = request.NewPropertyCity.Trim();
         var country = request.NewPropertyCountry.Trim();
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var community = communities.FirstOrDefault(x =>
             string.Equals(x.Name, communityName, StringComparison.OrdinalIgnoreCase));
         if (community is null)
@@ -209,10 +208,10 @@ public sealed class ReviewMvpService : IReviewMvpService
                 Country = country,
                 CreatedAt = DateTime.UtcNow
             };
-            await _dbContext.AddCommunityAsync(community, cancellationToken);
+            await _repository.AddCommunityAsync(community, cancellationToken);
         }
 
-        var existingProperty = (await _dbContext.GetPropertiesAsync(cancellationToken))
+        var existingProperty = (await _repository.GetPropertiesAsync(cancellationToken))
             .FirstOrDefault(x =>
                 string.Equals(x.StreetAddress, street, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(x.City, city, StringComparison.OrdinalIgnoreCase)
@@ -235,7 +234,7 @@ public sealed class ReviewMvpService : IReviewMvpService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _dbContext.AddPropertyAsync(property, cancellationToken);
+        await _repository.AddPropertyAsync(property, cancellationToken);
         return property.PropertyId;
     }
 

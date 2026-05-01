@@ -1,10 +1,10 @@
-using LeaseLense.Application.Abstractions.Persistence;
+using LeaseLense.Application.Abstractions;
 using LeaseLense.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace LeaseLense.Infrastructure.Data;
 
-public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
+public sealed class LeaseLensDbContext : DbContext, ILeaseLensRepository
 {
     public LeaseLensDbContext(DbContextOptions<LeaseLensDbContext> options)
         : base(options)

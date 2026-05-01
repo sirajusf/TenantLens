@@ -1,8 +1,8 @@
 using LeaseLense.Domain.Entities;
 
-namespace LeaseLense.Application.Abstractions.Persistence;
+namespace LeaseLense.Application.Abstractions;
 
-public interface ILeaseLensDbContext
+public interface ILeaseLensRepository
 {
     Task<List<Community>> GetCommunitiesAsync(CancellationToken cancellationToken = default);
     Task<List<Property>> GetPropertiesAsync(CancellationToken cancellationToken = default);

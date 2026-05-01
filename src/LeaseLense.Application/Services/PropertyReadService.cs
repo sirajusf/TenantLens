@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Properties;
 using LeaseLense.Domain.Entities;
 
@@ -7,17 +6,17 @@ namespace LeaseLense.Application.Services;
 
 public sealed class PropertyReadService : IPropertyReadService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public PropertyReadService(ILeaseLensDbContext dbContext)
+    public PropertyReadService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<IReadOnlyList<PropertyListItemDto>> GetPropertyListAsync(CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
 
         return properties

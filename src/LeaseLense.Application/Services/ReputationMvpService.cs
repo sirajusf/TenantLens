@@ -1,25 +1,24 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Reputation;
 
 namespace LeaseLense.Application.Services;
 
 public sealed class ReputationMvpService : IReputationMvpService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public ReputationMvpService(ILeaseLensDbContext dbContext)
+    public ReputationMvpService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<IReadOnlyList<PropertyReputationDto>> GetPropertyReputationsAsync(CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
-        var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
-        var issueTags = await _dbContext.GetReviewIssueTagsAsync(cancellationToken);
-        var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var reviews = await _repository.GetReviewsAsync(cancellationToken);
+        var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
+        var issueTags = await _repository.GetReviewIssueTagsAsync(cancellationToken);
+        var scamReports = await _repository.GetScamReportsAsync(cancellationToken);
 
         var reviewByProperty = reviews.GroupBy(x => x.PropertyId).ToDictionary(x => x.Key, x => x.Select(y => y.ReviewId).ToHashSet());
         var ratingByReview = ratings.GroupBy(x => x.ReviewId).ToDictionary(x => x.Key, x => x.ToList());
