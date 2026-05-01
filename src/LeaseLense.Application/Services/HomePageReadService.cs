@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.Home;
 using LeaseLense.Application.Properties;
@@ -9,22 +8,22 @@ namespace LeaseLense.Application.Services;
 
 public sealed class HomePageReadService : IHomePageReadService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public HomePageReadService(ILeaseLensDbContext dbContext)
+    public HomePageReadService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<HomePageDataDto> GetHomePageDataAsync(CancellationToken cancellationToken = default)
     {
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
-        var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
-        var reviewRatings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
-        var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var reviews = await _repository.GetReviewsAsync(cancellationToken);
+        var reviewRatings = await _repository.GetReviewRatingsAsync(cancellationToken);
+        var scamReports = await _repository.GetScamReportsAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var propertyLookup = properties.ToDictionary(x => x.PropertyId, x => x);
         var reviewAverageRatings = reviewRatings

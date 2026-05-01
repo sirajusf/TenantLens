@@ -1,5 +1,4 @@
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Common;
 using LeaseLense.Application.Properties;
 using LeaseLense.Domain.Entities;
@@ -8,12 +7,12 @@ namespace LeaseLense.Application.Services;
 
 public sealed class PropertyDirectoryService : IPropertyDirectoryService
 {
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
     private readonly ICoreSearchService _coreSearch;
 
-    public PropertyDirectoryService(ILeaseLensDbContext dbContext, ICoreSearchService coreSearch)
+    public PropertyDirectoryService(ILeaseLensRepository repository, ICoreSearchService coreSearch)
     {
-        _dbContext = dbContext;
+        _repository = repository;
         _coreSearch = coreSearch;
     }
 
@@ -25,9 +24,9 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
             Math.Clamp(query.Limit, 1, 200),
             cancellationToken);
 
-        var reviews = await _dbContext.GetReviewsAsync(cancellationToken);
-        var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
-        var scamReports = await _dbContext.GetScamReportsAsync(cancellationToken);
+        var reviews = await _repository.GetReviewsAsync(cancellationToken);
+        var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
+        var scamReports = await _repository.GetScamReportsAsync(cancellationToken);
 
         var reviewIdsByProperty = reviews
             .GroupBy(x => x.PropertyId)
@@ -76,27 +75,27 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
 
     public async Task<PropertyProfileDto?> GetProfileAsync(Guid propertyId, CancellationToken cancellationToken = default)
     {
-        var property = (await _dbContext.GetPropertiesAsync(cancellationToken))
+        var property = (await _repository.GetPropertiesAsync(cancellationToken))
             .FirstOrDefault(x => x.PropertyId == propertyId);
         if (property is null)
         {
             return null;
         }
 
-        var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+        var communities = await _repository.GetCommunitiesAsync(cancellationToken);
         var communityById = communities.ToDictionary(x => x.CommunityId);
         var communityName = ResolveCommunityName(property, communityById);
 
-        var reviews = (await _dbContext.GetReviewsAsync(cancellationToken))
+        var reviews = (await _repository.GetReviewsAsync(cancellationToken))
             .Where(x => x.PropertyId == propertyId)
             .OrderByDescending(x => x.CreatedAt)
             .ToList();
-        var ratings = await _dbContext.GetReviewRatingsAsync(cancellationToken);
-        var scamReports = (await _dbContext.GetScamReportsAsync(cancellationToken))
+        var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
+        var scamReports = (await _repository.GetScamReportsAsync(cancellationToken))
             .Where(x => x.PropertyId == propertyId)
             .OrderByDescending(x => x.DateReported)
             .ToList();
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
 
         var avgRatingByReview = ratings
             .GroupBy(x => x.ReviewId)

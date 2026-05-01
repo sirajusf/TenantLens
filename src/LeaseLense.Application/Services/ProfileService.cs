@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using LeaseLense.Application.Abstractions;
-using LeaseLense.Application.Abstractions.Persistence;
 using LeaseLense.Application.Profile;
 using LeaseLense.Domain.Entities;
 
@@ -9,21 +8,21 @@ namespace LeaseLense.Application.Services;
 public sealed class ProfileService : IProfileService
 {
     private static readonly Regex NonAlphaNumericRegex = new("[^A-Z0-9]", RegexOptions.Compiled);
-    private readonly ILeaseLensDbContext _dbContext;
+    private readonly ILeaseLensRepository _repository;
 
-    public ProfileService(ILeaseLensDbContext dbContext)
+    public ProfileService(ILeaseLensRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
     public async Task<UserProfileDto> GetProfileAsync(string email, CancellationToken cancellationToken = default)
     {
-        var renter = await _dbContext.GetRenterByEmailAsync(email.Trim(), cancellationToken)
+        var renter = await _repository.GetRenterByEmailAsync(email.Trim(), cancellationToken)
             ?? throw new InvalidOperationException("Authenticated renter profile was not found.");
 
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
-        var documents = await _dbContext.GetResidencyVerificationDocumentsAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var documents = await _repository.GetResidencyVerificationDocumentsAsync(cancellationToken);
         var nameLocked = verifications.Any(x =>
             x.RenterId == renter.RenterId
             && string.Equals(x.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
@@ -91,9 +90,9 @@ public sealed class ProfileService : IProfileService
 
     public async Task UpdateProfileAsync(UpdateUserProfileDto request, CancellationToken cancellationToken = default)
     {
-        var renter = await _dbContext.GetRenterByEmailAsync(request.Email.Trim(), cancellationToken)
+        var renter = await _repository.GetRenterByEmailAsync(request.Email.Trim(), cancellationToken)
             ?? throw new InvalidOperationException("Authenticated renter profile was not found.");
-        var verifications = await _dbContext.GetRenterPropertyVerificationsAsync(cancellationToken);
+        var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
         var nameLocked = verifications.Any(x =>
             x.RenterId == renter.RenterId
             && string.Equals(x.Status, "verified_stay", StringComparison.OrdinalIgnoreCase));
@@ -112,12 +111,12 @@ public sealed class ProfileService : IProfileService
         renter.PostalCode = Normalize(request.PostalCode);
         renter.Country = Normalize(request.Country);
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ResidencyVerificationDecisionDto> SubmitResidencyVerificationAsync(SubmitResidencyVerificationDto request, CancellationToken cancellationToken = default)
     {
-        var renter = await _dbContext.GetRenterByEmailAsync(request.Email.Trim(), cancellationToken)
+        var renter = await _repository.GetRenterByEmailAsync(request.Email.Trim(), cancellationToken)
             ?? throw new InvalidOperationException("Authenticated renter profile was not found.");
         if (!renter.EmailVerified)
         {
@@ -133,7 +132,7 @@ public sealed class ProfileService : IProfileService
         {
             throw new InvalidOperationException("Please provide a complete property address before submitting verification.");
         }
-        var properties = await _dbContext.GetPropertiesAsync(cancellationToken);
+        var properties = await _repository.GetPropertiesAsync(cancellationToken);
         var property = properties.FirstOrDefault(x =>
             string.Equals(x.StreetAddress, targetStreetAddress, StringComparison.OrdinalIgnoreCase)
             && string.Equals(x.City, targetCity, StringComparison.OrdinalIgnoreCase)
@@ -144,7 +143,7 @@ public sealed class ProfileService : IProfileService
             {
                 throw new InvalidOperationException("Please provide a property/community name for unlisted addresses.");
             }
-            var communities = await _dbContext.GetCommunitiesAsync(cancellationToken);
+            var communities = await _repository.GetCommunitiesAsync(cancellationToken);
             var community = communities.FirstOrDefault(x =>
                 string.Equals(x.Name, request.CommunityName.Trim(), StringComparison.OrdinalIgnoreCase));
             if (community is null)
@@ -158,8 +157,8 @@ public sealed class ProfileService : IProfileService
                     Country = targetCountry,
                     CreatedAt = DateTime.UtcNow
                 };
-                await _dbContext.AddCommunityAsync(community, cancellationToken);
-                await _dbContext.SaveChangesAsync(cancellationToken);
+                await _repository.AddCommunityAsync(community, cancellationToken);
+                await _repository.SaveChangesAsync(cancellationToken);
             }
 
             property = new Property
@@ -176,11 +175,11 @@ public sealed class ProfileService : IProfileService
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _dbContext.AddPropertyAsync(property, cancellationToken);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            await _repository.AddPropertyAsync(property, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
         }
 
-        var existingDocs = await _dbContext.GetResidencyVerificationDocumentsAsync(cancellationToken);
+        var existingDocs = await _repository.GetResidencyVerificationDocumentsAsync(cancellationToken);
         var duplicateHash = existingDocs.Any(x => x.FileHashSha256 == request.FileHashSha256);
 
         var nameScore = ComputeNameScore(renter.DisplayName, request.ExtractedName);
@@ -271,9 +270,9 @@ public sealed class ProfileService : IProfileService
             UploadedAt = DateTime.UtcNow
         };
 
-        await _dbContext.AddRenterPropertyVerificationAsync(verification, cancellationToken);
-        await _dbContext.AddResidencyVerificationDocumentAsync(document, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _repository.AddRenterPropertyVerificationAsync(verification, cancellationToken);
+        await _repository.AddResidencyVerificationDocumentAsync(document, cancellationToken);
+        await _repository.SaveChangesAsync(cancellationToken);
         return new ResidencyVerificationDecisionDto
         {
             Status = status,
