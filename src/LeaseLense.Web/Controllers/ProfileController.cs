@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging;
 using LeaseLense.Web.Services;
 using System.Text;
 
@@ -20,19 +21,22 @@ public sealed class ProfileController : Controller
     private readonly IEmailVerificationSender _emailVerificationSender;
     private readonly IDocumentExtractionService _documentExtractionService;
     private readonly IResidencyFallbackQueue _residencyFallbackQueue;
+    private readonly ILogger<ProfileController> _logger;
 
     public ProfileController(
         IProfileService profileService,
         UserManager<IdentityUser> userManager,
         IEmailVerificationSender emailVerificationSender,
         IDocumentExtractionService documentExtractionService,
-        IResidencyFallbackQueue residencyFallbackQueue)
+        IResidencyFallbackQueue residencyFallbackQueue,
+        ILogger<ProfileController> logger)
     {
         _profileService = profileService;
         _userManager = userManager;
         _emailVerificationSender = emailVerificationSender;
         _documentExtractionService = documentExtractionService;
         _residencyFallbackQueue = residencyFallbackQueue;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -84,8 +88,9 @@ public sealed class ProfileController : Controller
             await _emailVerificationSender.SendVerificationEmailAsync(user.Email ?? email, callbackUrl, cancellationToken);
             TempData["ProfileSuccess"] = "Verification email sent. Check your inbox.";
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to send verification email from profile page for {Email}.", user.Email ?? email);
             TempData["ProfileError"] = "Could not send verification email. Check SMTP configuration and try again.";
         }
 
@@ -117,6 +122,7 @@ public sealed class ProfileController : Controller
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Profile update rejected for {Email}.", email);
             TempData["ProfileError"] = ex.Message;
             return RedirectToAction(nameof(Index));
         }
@@ -243,18 +249,21 @@ public sealed class ProfileController : Controller
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Residency verification rejected before completion for {Email}. DocumentType: {DocumentType}", email, form.DocumentType);
             TempData["ProfileError"] = ex.Message;
             return RedirectToAction(nameof(Index));
         }
         catch (RequestFailedException ex)
         {
+            _logger.LogError(ex, "Azure Document Intelligence failed for {Email}. DocumentType: {DocumentType}, Status: {Status}", email, form.DocumentType, ex.Status);
             TempData["ProfileError"] = ex.Status == 404
                 ? "Azure Document Intelligence returned 404. Verify this endpoint belongs to a Document Intelligence resource in the same region as the API key."
                 : "Document analysis (Azure) failed. Confirm endpoint, API key, model id, and region in appsettings, then try again.";
             return RedirectToAction(nameof(Index));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Unexpected residency verification failure for {Email}. DocumentType: {DocumentType}", email, form.DocumentType);
             TempData["ProfileError"] =
                 "Verification could not be completed. If you saw a success message before, check your email; otherwise try again.";
             return RedirectToAction(nameof(Index));

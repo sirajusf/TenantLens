@@ -1,11 +1,21 @@
 using LeaseLense.Application;
 using LeaseLense.Infrastructure;
 using LeaseLense.Infrastructure.Data;
+using LeaseLense.Web.Logging;
 using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
+    options.SingleLine = false;
+});
+builder.Logging.AddDebug();
+builder.Logging.AddEventSourceLogger();
 
 using (var keyVaultLoggerFactory = LoggerFactory.Create(static b => b.AddConsole()))
 {
@@ -17,9 +27,11 @@ using (var keyVaultLoggerFactory = LoggerFactory.Create(static b => b.AddConsole
 builder.Services.AddControllersWithViews();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+builder.Services.Configure<ApplicationFileLoggingOptions>(builder.Configuration.GetSection(ApplicationFileLoggingOptions.SectionName));
 builder.Services.Configure<GmailSmtpOptions>(builder.Configuration.GetSection(GmailSmtpOptions.SectionName));
 builder.Services.Configure<AzureDocumentIntelligenceOptions>(builder.Configuration.GetSection(AzureDocumentIntelligenceOptions.SectionName));
 builder.Services.Configure<LlmFoundryFileLoggingOptions>(builder.Configuration.GetSection(LlmFoundryFileLoggingOptions.SectionName));
+builder.Services.AddSingleton<ILoggerProvider, ApplicationFileLoggerProvider>();
 builder.Services.AddSingleton<ILlmFoundryErrorFileLog, LlmFoundryErrorFileLog>();
 builder.Services.AddScoped<IEmailVerificationSender, GmailEmailVerificationSender>();
 builder.Services.AddHttpClient<IAddressExtractionLlmClient, AzureFoundryAddressExtractionLlmClient>();
@@ -46,6 +58,25 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 var app = builder.Build();
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+{
+    if (eventArgs.ExceptionObject is Exception exception)
+    {
+        startupLogger.LogCritical(exception, "Unhandled application exception. IsTerminating: {IsTerminating}", eventArgs.IsTerminating);
+    }
+    else
+    {
+        startupLogger.LogCritical("Unhandled non-exception application failure. IsTerminating: {IsTerminating}", eventArgs.IsTerminating);
+    }
+};
+
+TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+{
+    startupLogger.LogError(eventArgs.Exception, "Unobserved task exception.");
+    eventArgs.SetObserved();
+};
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -56,6 +87,24 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var requestLogger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RequestExceptions");
+        requestLogger.LogError(
+            ex,
+            "Unhandled request exception for {Method} {Path}. TraceIdentifier: {TraceIdentifier}",
+            context.Request.Method,
+            context.Request.Path,
+            context.TraceIdentifier);
+        throw;
+    }
+});
 app.UseRouting();
 
 app.UseAuthentication();

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging;
 using System.Text;
 
 namespace LeaseLense.Web.Controllers;
@@ -15,17 +16,20 @@ public sealed class AccountController : Controller
     private readonly SignInManager<IdentityUser> _signInManager;
     private readonly IUserAccountService _userAccountService;
     private readonly IEmailVerificationSender _emailVerificationSender;
+    private readonly ILogger<AccountController> _logger;
 
     public AccountController(
         UserManager<IdentityUser> userManager,
         SignInManager<IdentityUser> signInManager,
         IUserAccountService userAccountService,
-        IEmailVerificationSender emailVerificationSender)
+        IEmailVerificationSender emailVerificationSender,
+        ILogger<AccountController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _userAccountService = userAccountService;
         _emailVerificationSender = emailVerificationSender;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -77,8 +81,9 @@ public sealed class AccountController : Controller
             await _emailVerificationSender.SendVerificationEmailAsync(user.Email!, callbackUrl, cancellationToken);
             TempData["RegistrationSuccess"] = "Account created. Check your Gmail inbox to verify your email.";
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to send registration verification email for {Email}.", user.Email);
             TempData["RegistrationError"] = "Account created, but verification email could not be sent. Check Gmail SMTP configuration.";
         }
         return RedirectToAction(nameof(Register));

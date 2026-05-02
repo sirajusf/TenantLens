@@ -43,6 +43,31 @@ public sealed class AzureFoundryAddressExtractionLlmClient : IAddressExtractionL
             || string.IsNullOrWhiteSpace(foundry.Model)
             || string.IsNullOrWhiteSpace(ocrText))
         {
+            if (foundry.Enabled
+                && (!string.IsNullOrWhiteSpace(ocrText))
+                && (string.IsNullOrWhiteSpace(foundry.Endpoint)
+                    || string.IsNullOrWhiteSpace(foundry.ApiKey)
+                    || string.IsNullOrWhiteSpace(foundry.Model)))
+            {
+                TryWriteFoundryErrorFile(
+                    LlmFoundryFileLogSeverity.Warning,
+                    "FoundryConfigurationIncomplete",
+                    "Foundry extraction is enabled but endpoint, API key, or model configuration is missing.",
+                    context: new Dictionary<string, string?>
+                    {
+                        ["documentType"] = documentType,
+                        ["endpointConfigured"] = string.IsNullOrWhiteSpace(foundry.Endpoint) ? "false" : "true",
+                        ["apiKeyConfigured"] = string.IsNullOrWhiteSpace(foundry.ApiKey) ? "false" : "true",
+                        ["modelConfigured"] = string.IsNullOrWhiteSpace(foundry.Model) ? "false" : "true"
+                    });
+                _logger.LogWarning(
+                    "Foundry extraction skipped because configuration is incomplete. DocumentType: {DocumentType}, EndpointConfigured: {EndpointConfigured}, ApiKeyConfigured: {ApiKeyConfigured}, ModelConfigured: {ModelConfigured}",
+                    documentType,
+                    !string.IsNullOrWhiteSpace(foundry.Endpoint),
+                    !string.IsNullOrWhiteSpace(foundry.ApiKey),
+                    !string.IsNullOrWhiteSpace(foundry.Model));
+            }
+
             return null;
         }
 
@@ -264,6 +289,19 @@ public sealed class AzureFoundryAddressExtractionLlmClient : IAddressExtractionL
             }
         }
 
+        TryWriteFoundryErrorFile(
+            LlmFoundryFileLogSeverity.Error,
+            "FoundryAttemptsExhausted",
+            "All Foundry extraction attempts completed without a successful parsed result.",
+            context: new Dictionary<string, string?>
+            {
+                ["documentType"] = documentType,
+                ["maxAttempts"] = maxAttempts.ToString()
+            });
+        _logger.LogError(
+            "Foundry extraction exhausted all attempts without a parsed result. DocumentType: {DocumentType}. Attempts: {MaxAttempts}",
+            documentType,
+            maxAttempts);
         return null;
     }
 

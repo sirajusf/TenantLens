@@ -3,16 +3,19 @@ using LeaseLense.Application.Reviews;
 using LeaseLense.Web.Models.Reviews;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace LeaseLense.Web.Controllers;
 
 public sealed class ReviewsController : Controller
 {
     private readonly IReviewMvpService _reviewMvpService;
+    private readonly ILogger<ReviewsController> _logger;
 
-    public ReviewsController(IReviewMvpService reviewMvpService)
+    public ReviewsController(IReviewMvpService reviewMvpService, ILogger<ReviewsController> logger)
     {
         _reviewMvpService = reviewMvpService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -42,8 +45,9 @@ public sealed class ReviewsController : Controller
         {
             page = await _reviewMvpService.GetReviewsAsync(query, cancellationToken);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to load reviews. PropertyQuery: {PropertyQuery}, City: {City}, SortBy: {SortBy}", propertyQuery, city, sortKey);
             var errorModel = new ReviewListViewModel
             {
                 PropertyQuery = propertyQuery,
@@ -144,6 +148,7 @@ public sealed class ReviewsController : Controller
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Review submission rejected for {ReporterEmail}.", reporterEmail);
             ModelState.AddModelError(string.Empty, ex.Message);
             return View(ToCreatePageModel(form, metadata));
         }

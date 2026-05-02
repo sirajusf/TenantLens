@@ -205,11 +205,18 @@ public sealed class AzureDocumentIntelligenceExtractionService : IDocumentExtrac
             var layoutResult = await AnalyzeWithModelAsync(client, fileBytes, _options.LayoutFallbackModelId, cancellationToken);
             var layoutText = layoutResult.Content ?? string.Empty;
             var llmResult = await _llmClient.TryExtractAsync(layoutText, documentType, cancellationToken);
+            if (llmResult is null)
+            {
+                _logger.LogWarning(
+                    "Layout OCR completed but LLM extraction returned no result. DocumentType: {DocumentType}",
+                    documentType);
+            }
+
             return llmResult;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Layout+LLM extraction fallback failed.");
+            _logger.LogWarning(ex, "Layout+LLM extraction fallback failed for {DocumentType}.", documentType);
             return null;
         }
     }
