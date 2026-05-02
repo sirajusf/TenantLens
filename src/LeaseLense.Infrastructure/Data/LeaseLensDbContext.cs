@@ -22,6 +22,7 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
     public DbSet<LeaseDocument> LeaseDocuments => Set<LeaseDocument>();
     public DbSet<LeaseAnalysis> LeaseAnalyses => Set<LeaseAnalysis>();
     public DbSet<LeaseClauseFlag> LeaseClauseFlags => Set<LeaseClauseFlag>();
+    public DbSet<LeaseSummarizationJob> LeaseSummarizationJobs => Set<LeaseSummarizationJob>();
     public DbSet<NegotiationSession> NegotiationSessions => Set<NegotiationSession>();
     public DbSet<NegotiationSuggestion> NegotiationSuggestions => Set<NegotiationSuggestion>();
     public DbSet<RenterPropertyVerification> RenterPropertyVerifications => Set<RenterPropertyVerification>();
@@ -320,6 +321,7 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
             entity.Property(x => x.SummaryRiskScore).HasColumnName("summary_risk_score").HasPrecision(5, 2);
             entity.Property(x => x.RiskLevel).HasColumnName("risk_level").HasMaxLength(40);
             entity.Property(x => x.SummaryText).HasColumnName("summary_text");
+            entity.Property(x => x.StructuredSummaryJson).HasColumnName("structured_summary_json");
             entity.Property(x => x.ModelVersion).HasColumnName("model_version").HasMaxLength(200);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
 
@@ -355,6 +357,36 @@ public sealed class LeaseLensDbContext : DbContext, ILeaseLensDbContext
                 .WithMany()
                 .HasForeignKey(x => x.LeaseAnalysisId)
                 .HasConstraintName("FK_lease_clause_flags_lease_analysis");
+        });
+
+        modelBuilder.Entity<LeaseSummarizationJob>(entity =>
+        {
+            entity.ToTable("lease_summarization_jobs", "dbo");
+            entity.HasKey(x => x.LeaseSummarizationJobId);
+            entity.Property(x => x.LeaseSummarizationJobId).HasColumnName("lease_summarization_job_id");
+            entity.Property(x => x.LeaseDocumentId).HasColumnName("lease_document_id");
+            entity.Property(x => x.RenterId).HasColumnName("renter_id");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(40);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(2000);
+            entity.Property(x => x.LeaseAnalysisId).HasColumnName("lease_analysis_id");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+
+            entity.HasOne<LeaseDocument>()
+                .WithMany()
+                .HasForeignKey(x => x.LeaseDocumentId)
+                .HasConstraintName("FK_lease_summarization_jobs_lease_document");
+
+            entity.HasOne<Renter>()
+                .WithMany()
+                .HasForeignKey(x => x.RenterId)
+                .HasConstraintName("FK_lease_summarization_jobs_renter");
+
+            entity.HasOne<LeaseAnalysis>()
+                .WithMany()
+                .HasForeignKey(x => x.LeaseAnalysisId)
+                .HasConstraintName("FK_lease_summarization_jobs_lease_analysis");
         });
 
         modelBuilder.Entity<NegotiationSession>(entity =>

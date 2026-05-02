@@ -60,6 +60,10 @@
                     <a asp-area="" asp-controller="ScamReports" asp-action="Index" class="@(currentController == "ScamReports" ? "active" : null)">Scam Reports</a>
                     @if (User.Identity?.IsAuthenticated ?? false)
                     {
+                        <a asp-area="" asp-controller="LeaseSummarizer" asp-action="Index" class="@(currentController == "LeaseSummarizer" ? "active" : null)">Lease Summarizer</a>
+                    }
+                    @if (User.Identity?.IsAuthenticated ?? false)
+                    {
                         <details class="user-menu">
                             <summary class="user-menu-trigger" aria-label="User menu">
                                 <span class="user-menu-icon">👤</span>

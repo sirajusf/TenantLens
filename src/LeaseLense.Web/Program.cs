@@ -23,9 +23,12 @@ builder.Services.Configure<LlmFoundryFileLoggingOptions>(builder.Configuration.G
 builder.Services.AddSingleton<ILlmFoundryErrorFileLog, LlmFoundryErrorFileLog>();
 builder.Services.AddScoped<IEmailVerificationSender, GmailEmailVerificationSender>();
 builder.Services.AddHttpClient<IAddressExtractionLlmClient, AzureFoundryAddressExtractionLlmClient>();
+builder.Services.AddHttpClient<ILeaseSummarizationLlmClient, AzureFoundryLeaseSummarizationLlmClient>();
 builder.Services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
 builder.Services.AddSingleton<IResidencyFallbackQueue, ResidencyFallbackQueue>();
 builder.Services.AddHostedService<ResidencyFallbackWorker>();
+builder.Services.AddSingleton<ILeaseSummarizationQueue, LeaseSummarizationQueue>();
+builder.Services.AddHostedService<LeaseSummarizationWorker>();
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>(options =>
     {
@@ -96,6 +99,13 @@ if (shouldEnsureIdentitySchema)
     using var scope = app.Services.CreateScope();
     var authDbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
     await IdentitySchemaInitializer.EnsureCreatedAsync(authDbContext);
+}
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var leaseLensDbContext = scope.ServiceProvider.GetRequiredService<LeaseLensDbContext>();
+    await LeaseLensSchemaInitializer.EnsureCreatedAsync(leaseLensDbContext);
 }
 
 // wrap start to persist startup exception
