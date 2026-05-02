@@ -20,14 +20,24 @@ public sealed class ScamReportsController : Controller
         string? q,
         string? city,
         decimal? minSeverity,
+        string? scamType,
+        decimal? maxSeverity,
+        DateOnly? dateReportedAfter,
+        string? sortBy,
         CancellationToken cancellationToken)
     {
-        var reports = await _scamReportMvpService.GetScamReportsAsync(q, city, minSeverity, cancellationToken);
+        var reports = await _scamReportMvpService.GetScamReportsAsync(
+            q, city, minSeverity, scamType, maxSeverity, dateReportedAfter, sortBy, cancellationToken);
+
         var model = new ScamReportIndexViewModel
         {
             QueryText = q,
             City = city,
             MinSeverity = minSeverity,
+            ScamType = scamType,
+            MaxSeverity = maxSeverity,
+            DateReportedAfter = dateReportedAfter,
+            SortBy = sortBy,
             Reports = reports.Select(x => new ScamReportListItemViewModel
             {
                 PropertyId = x.PropertyId,

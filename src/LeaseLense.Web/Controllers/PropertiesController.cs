@@ -15,12 +15,26 @@ public sealed class PropertiesController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(string? q, CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        string? q,
+        string? city,
+        string? propertyType,
+        string? landlordName,
+        decimal? minRating,
+        bool hasVerifiedReviews,
+        string? sortBy,
+        CancellationToken cancellationToken)
     {
         var result = await _propertyDirectoryService.SearchAsync(
             new PropertyDirectoryQueryDto
             {
                 QueryText = q,
+                City = city,
+                PropertyType = propertyType,
+                LandlordName = landlordName,
+                MinRating = minRating,
+                HasVerifiedReviews = hasVerifiedReviews,
+                SortBy = sortBy,
                 Limit = 120
             },
             cancellationToken);
@@ -28,6 +42,12 @@ public sealed class PropertiesController : Controller
         var model = new PropertyDirectoryPageViewModel
         {
             QueryText = result.QueryText,
+            City = city,
+            PropertyType = propertyType,
+            LandlordName = landlordName,
+            MinRating = minRating,
+            HasVerifiedReviews = hasVerifiedReviews,
+            SortBy = sortBy,
             Properties = result.Items.Select(x => new PropertyDirectoryItemViewModel
             {
                 PropertyId = x.PropertyId,

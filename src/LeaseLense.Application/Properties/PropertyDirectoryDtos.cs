@@ -3,6 +3,17 @@ namespace LeaseLense.Application.Properties;
 public sealed class PropertyDirectoryQueryDto
 {
     public string? QueryText { get; init; }
+    public string? City { get; init; }
+    public string? PropertyType { get; init; }
+    public string? LandlordName { get; init; }
+    public decimal? MinRating { get; init; }
+
+    /// <summary>When true, only properties that have at least one verified-stay review are returned.</summary>
+    public bool HasVerifiedReviews { get; init; }
+
+    /// <summary>"name" | "rating"</summary>
+    public string? SortBy { get; init; }
+
     public int Limit { get; init; } = 100;
 }
 
