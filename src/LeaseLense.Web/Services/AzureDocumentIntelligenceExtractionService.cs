@@ -29,6 +29,45 @@ public sealed class AzureDocumentIntelligenceExtractionService : IDocumentExtrac
         _logger = logger;
     }
 
+    public async Task<DocumentOcrTextResult> ExtractOcrTextAsync(
+        byte[] fileBytes,
+        string documentType,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_options.Enabled)
+        {
+            throw new InvalidOperationException("Azure document extraction is disabled.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.Endpoint) || string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            throw new InvalidOperationException("Azure document extraction configuration is incomplete.");
+        }
+
+        _ = contentType;
+
+        var client = new DocumentIntelligenceClient(new Uri(_options.Endpoint), new AzureKeyCredential(_options.ApiKey));
+        var modelUsed = ResolveModelForDocumentType(documentType);
+
+        AnalyzeResult result;
+        try
+        {
+            result = await AnalyzeWithModelAsync(client, fileBytes, modelUsed, cancellationToken);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404 && !string.Equals(modelUsed, "prebuilt-layout", StringComparison.OrdinalIgnoreCase))
+        {
+            modelUsed = _options.LayoutFallbackModelId;
+            result = await AnalyzeWithModelAsync(client, fileBytes, modelUsed, cancellationToken);
+        }
+
+        return new DocumentOcrTextResult
+        {
+            RawText = result.Content ?? string.Empty,
+            ModelUsed = modelUsed
+        };
+    }
+
     public async Task<ResidencyDocumentExtractionDto> ExtractResidencyEvidenceAsync(
         byte[] fileBytes,
         string documentType,

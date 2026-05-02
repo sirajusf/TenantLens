@@ -1,0 +1,294 @@
+@{
+    ViewData["Title"] = "Lease Summarizer";
+    var jobId = ViewData["LeaseSummarizerJobId"]?.ToString() ?? string.Empty;
+}
+
+<section class="mvp-shell reveal">
+    <div class="mvp-hero">
+        <h1>Lease Summarizer</h1>
+        <p>Your summary is being prepared. This page will update automatically.</p>
+    </div>
+
+    <article class="mvp-card accent-cyan">
+        <h2>Status</h2>
+        <p id="job-status" class="mvp-text">Queued…</p>
+        <p class="mvp-text"><span class="mvp-badge">Job</span> <code>@jobId</code></p>
+    </article>
+
+    <article id="lease-summary-article" class="mvp-card" style="margin-top: 1rem;">
+        <h2>Summary</h2>
+        <p class="mvp-text">Results will appear here once the job is complete.</p>
+    </article>
+</section>
+
+<style>
+    .lease-sum-section { margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid rgba(255,255,255,0.08); }
+    .lease-sum-section:first-of-type { margin-top: 0.35rem; padding-top: 0; border-top: none; }
+    .lease-sum-section h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--muted, #9aa4b2); text-transform: uppercase; letter-spacing: 0.04em; }
+    .lease-sum-dl { margin: 0; display: grid; gap: 0.45rem; }
+    .lease-sum-dl > div { display: grid; gap: 0.12rem; }
+    .lease-sum-dl dt { font-size: 0.78rem; color: var(--muted, #9aa4b2); margin: 0; }
+    .lease-sum-dl dd { margin: 0; font-size: 0.92rem; line-height: 1.45; }
+    .lease-sum-list { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+    .lease-sum-list li { margin: 0.2rem 0; }
+    .lease-sum-narrative { margin-top: 0.75rem; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.5; }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            const statusEl = document.getElementById("job-status");
+            if (!statusEl) return;
+
+            const id = "@jobId";
+            if (!id) return;
+
+            function escapeHtml(s) {
+                if (s === null || s === undefined) return "";
+                const div = document.createElement("div");
+                div.textContent = String(s);
+                return div.innerHTML;
+            }
+
+            function formatMoneyAmount(n, currency) {
+                if (n === null || n === undefined || Number.isNaN(Number(n))) return null;
+                const cur = (currency || "USD").toUpperCase();
+                try {
+                    return new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(Number(n));
+                } catch {
+                    return String(n);
+                }
+            }
+
+            function buildPremisesLine(p) {
+                if (!p || typeof p !== "object") return null;
+                const fa = p.fullAddress && String(p.fullAddress).trim();
+                if (fa) return fa;
+                const parts = [p.street, p.unit, p.city, p.state, p.postalCode, p.country]
+                    .map(x => (x != null && String(x).trim() !== "") ? String(x).trim() : null)
+                    .filter(Boolean);
+                return parts.length ? parts.join(", ") : null;
+            }
+
+            function renderStructured(data) {
+                let obj = null;
+                const raw = data.structuredSummaryJson;
+                if (raw && typeof raw === "string") {
+                    try { obj = JSON.parse(raw); } catch { obj = null; }
+                }
+                const parts = [];
+                parts.push("<h2>Summary</h2>");
+
+                if (!obj) {
+                    parts.push('<p class="mvp-text lease-sum-narrative">' + escapeHtml(data.summaryText || "(No structured data; summary text missing.)") + "</p>");
+                    return parts.join("");
+                }
+
+                const premisesLine = buildPremisesLine(obj.premises);
+                const parties = obj.parties && typeof obj.parties === "object" ? obj.parties : null;
+                const landlord = parties && (parties.landlordOrLeaseOwnerName || parties.landlordName || parties.leaseOwnerName);
+                const pm = parties && parties.propertyManagerOrAgent;
+                const tenants = parties && Array.isArray(parties.tenantNames) ? parties.tenantNames.filter(Boolean) : [];
+
+                function section(title, innerHtml) {
+                    if (!innerHtml || !String(innerHtml).trim()) return "";
+                    return '<section class="lease-sum-section"><h3>' + escapeHtml(title) + "</h3>" + innerHtml + "</section>";
+                }
+
+                function dl(rows) {
+                    const items = rows.filter(r => r.v != null && String(r.v).trim() !== "");
+                    if (!items.length) return "";
+                    let h = '<div class="lease-sum-dl">';
+                    for (const r of items) {
+                        h += "<div><dt>" + escapeHtml(r.k) + "</dt><dd>" + escapeHtml(String(r.v)) + "</dd></div>";
+                    }
+                    h += "</div>";
+                    return h;
+                }
+
+                let blocks = "";
+
+                blocks += section("Property address", dl([{ k: "Address", v: premisesLine }]));
+
+                const partyRows = [];
+                if (landlord) partyRows.push({ k: "Landlord / lease owner", v: landlord });
+                if (pm) partyRows.push({ k: "Property manager / agent", v: pm });
+                if (tenants.length) partyRows.push({ k: "Tenant(s)", v: tenants.join(", ") });
+                blocks += section("Parties", dl(partyRows));
+
+                const term = obj.term && typeof obj.term === "object" ? obj.term : null;
+                if (term) {
+                    const trows = [];
+                    if (term.startDate) trows.push({ k: "Start date", v: term.startDate });
+                    if (term.endDate) trows.push({ k: "End date", v: term.endDate });
+                    if (term.months != null) trows.push({ k: "Term length", v: String(term.months) + " months" });
+                    if (term.renewalType) trows.push({ k: "Renewal", v: term.renewalType });
+                    if (term.earlyTermination) trows.push({ k: "Early termination", v: term.earlyTermination });
+                    blocks += section("Lease term", dl(trows));
+                }
+
+                const money = obj.money && typeof obj.money === "object" ? obj.money : null;
+                if (money) {
+                    const cur = money.currency || "USD";
+                    const mrows = [];
+                    const mr = money.monthlyRent;
+                    if (mr && typeof mr === "object") {
+                        const amt = formatMoneyAmount(mr.amount, cur);
+                        if (amt) mrows.push({ k: "Monthly rent", v: amt });
+                        if (mr.dueDayOfMonth != null) mrows.push({ k: "Rent due (day of month)", v: String(mr.dueDayOfMonth) });
+                        if (mr.gracePeriodDays != null) mrows.push({ k: "Grace period (days)", v: String(mr.gracePeriodDays) });
+                    }
+                    const sd = money.securityDeposit;
+                    if (sd && typeof sd === "object") {
+                        const a = formatMoneyAmount(sd.amount, cur);
+                        if (a) mrows.push({ k: "Security deposit", v: a + (sd.dueWhen ? " — " + sd.dueWhen : "") });
+                    }
+                    if (Array.isArray(money.otherDeposits)) {
+                        for (const d of money.otherDeposits) {
+                            if (!d || typeof d !== "object") continue;
+                            const a = formatMoneyAmount(d.amount, cur);
+                            const label = (d.type || "Deposit") + (a ? ": " + a : "");
+                            mrows.push({ k: "Other deposit", v: label + (d.dueWhen ? " — " + d.dueWhen : "") });
+                        }
+                    }
+                    const lf = money.lateFees;
+                    if (lf && typeof lf === "object") {
+                        const bits = [];
+                        if (lf.amount != null) bits.push(formatMoneyAmount(lf.amount, cur) || String(lf.amount));
+                        if (lf.perDayAmount != null) bits.push("per day " + (formatMoneyAmount(lf.perDayAmount, cur) || lf.perDayAmount));
+                        if (lf.percent != null) bits.push(String(lf.percent) + "%");
+                        if (lf.notes) bits.push(lf.notes);
+                        if (bits.length) mrows.push({ k: "Late fees", v: bits.join("; ") });
+                    }
+                    const nsf = money.nsfFees;
+                    if (nsf && typeof nsf === "object" && (nsf.amount != null || nsf.notes)) {
+                        const v = (formatMoneyAmount(nsf.amount, cur) || "") + (nsf.notes ? " — " + nsf.notes : "");
+                        mrows.push({ k: "NSF / returned payment", v: v.trim() });
+                    }
+                    if (Array.isArray(money.recurringCharges)) {
+                        for (const c of money.recurringCharges) {
+                            if (!c || typeof c !== "object") continue;
+                            const a = formatMoneyAmount(c.amount, cur);
+                            mrows.push({
+                                k: "Recurring: " + (c.type || "Charge"),
+                                v: [a, c.frequency, c.notes].filter(Boolean).join(" — ")
+                            });
+                        }
+                    }
+                    if (Array.isArray(money.oneTimeFees)) {
+                        for (const c of money.oneTimeFees) {
+                            if (!c || typeof c !== "object") continue;
+                            const a = formatMoneyAmount(c.amount, cur);
+                            mrows.push({
+                                k: "One-time: " + (c.type || "Fee"),
+                                v: [a, c.when, c.notes].filter(Boolean).join(" — ")
+                            });
+                        }
+                    }
+                    blocks += section("Rent & fees", dl(mrows));
+
+                    const utils = money.utilities;
+                    if (Array.isArray(utils) && utils.length) {
+                        let ul = "<ul class=\"lease-sum-list\">";
+                        for (const u of utils) {
+                            if (!u || typeof u !== "object") continue;
+                            const line = [u.utility, u.paidBy, u.notes].filter(x => x != null && String(x).trim() !== "").join(" — ");
+                            if (line) ul += "<li>" + escapeHtml(line) + "</li>";
+                        }
+                        ul += "</ul>";
+                        blocks += section("Utilities (who pays)", ul);
+                    }
+                }
+
+                const notices = obj.notices && typeof obj.notices === "object" ? obj.notices : null;
+                if (notices) {
+                    const nrows = [];
+                    if (notices.moveOutNoticeDays != null) nrows.push({ k: "Move-out notice (days)", v: String(notices.moveOutNoticeDays) });
+                    if (notices.terminationNoticeDays != null) nrows.push({ k: "Termination notice (days)", v: String(notices.terminationNoticeDays) });
+                    if (notices.entryNoticeHours != null) nrows.push({ k: "Entry notice (hours)", v: String(notices.entryNoticeHours) });
+                    if (notices.rentIncreaseNoticeDays != null) nrows.push({ k: "Rent increase notice (days)", v: String(notices.rentIncreaseNoticeDays) });
+                    if (Array.isArray(notices.other) && notices.other.length) {
+                        nrows.push({ k: "Other notices", v: notices.other.join("; ") });
+                    }
+                    blocks += section("Notices", dl(nrows));
+                }
+
+                const moveOut = obj.moveOut && typeof obj.moveOut === "object" ? obj.moveOut : null;
+                if (moveOut) {
+                    const morows = [];
+                    if (moveOut.cleaningRequirements) morows.push({ k: "Cleaning", v: moveOut.cleaningRequirements });
+                    if (moveOut.repairDeductions) morows.push({ k: "Repairs / deductions", v: moveOut.repairDeductions });
+                    if (Array.isArray(moveOut.professionalServicesRequired) && moveOut.professionalServicesRequired.length) {
+                        morows.push({ k: "Professional services", v: moveOut.professionalServicesRequired.join(", ") });
+                    }
+                    blocks += section("Move-out", dl(morows));
+                }
+
+                if (Array.isArray(obj.highlights) && obj.highlights.length) {
+                    let ul = "<ul class=\"lease-sum-list\">";
+                    for (const h of obj.highlights) {
+                        if (h) ul += "<li>" + escapeHtml(String(h)) + "</li>";
+                    }
+                    ul += "</ul>";
+                    blocks += section("Highlights", ul);
+                }
+
+                if (obj.confidence != null) {
+                    blocks += section("Extraction confidence", dl([{ k: "Model confidence", v: String(obj.confidence) }]));
+                }
+
+                const narrative = data.summaryText || obj.summaryText;
+                if (narrative && String(narrative).trim()) {
+                    blocks += section("Full narrative", '<p class="mvp-text lease-sum-narrative">' + escapeHtml(String(narrative)) + "</p>");
+                }
+
+                if (Array.isArray(data.clauseFlags) && data.clauseFlags.length) {
+                    let fh = "<ul class=\"lease-sum-list\">";
+                    for (const f of data.clauseFlags) {
+                        if (!f) continue;
+                        const line = (f.clauseType ? f.clauseType + ": " : "") + (f.explanation || f.flaggedText || "");
+                        if (line.trim()) fh += "<li><strong>" + escapeHtml(f.riskLevel || "") + "</strong> — " + escapeHtml(line) + "</li>";
+                    }
+                    fh += "</ul>";
+                    blocks += section("Clause flags", fh);
+                }
+
+                parts.push(blocks);
+                return parts.join("");
+            }
+
+            const poll = async () => {
+                try {
+                    const res = await fetch(`/LeaseSummarizer/StatusJson?id=${encodeURIComponent(id)}`, {
+                        headers: { "Accept": "application/json" }
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    statusEl.textContent = (data && data.status) ? data.status : "unknown";
+
+                    if (data && data.status === "succeeded") {
+                        const summaryContainer = document.getElementById("lease-summary-article");
+                        if (summaryContainer) {
+                            summaryContainer.innerHTML = renderStructured(data);
+                        }
+                        return;
+                    }
+
+                    if (data && data.status === "failed") {
+                        const summaryContainer = document.getElementById("lease-summary-article");
+                        if (summaryContainer) {
+                            summaryContainer.innerHTML = `<h2>Summary</h2><div class="mvp-error">${escapeHtml(data.errorMessage || "Processing failed.")}</div>`;
+                        }
+                        return;
+                    }
+                } catch {
+                }
+
+                setTimeout(poll, 2000);
+            };
+
+            poll();
+        })();
+    </script>
+}
+

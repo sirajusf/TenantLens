@@ -9,6 +9,7 @@ public sealed class LeaseAnalysis
     public decimal? SummaryRiskScore { get; set; }
     public string? RiskLevel { get; set; }
     public string? SummaryText { get; set; }
+    public string? StructuredSummaryJson { get; set; }
     public string? ModelVersion { get; set; }
     public DateTime CreatedAt { get; set; }
 }
