@@ -2,33 +2,204 @@
     ViewData["Title"] = "Lease Summarizer";
 }
 
-<section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>Lease Summarizer</h1>
-        <p>Upload a lease document and get a structured summary of rent, fees, term length, and critical clauses.</p>
-    </div>
+<div class="ls-page">
+    <div class="container">
 
-    @if (TempData["LeaseSummarizerError"] is string error)
-    {
-        <div class="mvp-error">@error</div>
+        <header class="ls-header reveal">
+            <div class="ls-header__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+            </div>
+            <div class="ls-header__text">
+                <h1>AI Lease Summarizer</h1>
+                <p>Upload your lease and get a structured breakdown of rent, fees, deadlines, and risk clauses — before you sign.</p>
+            </div>
+        </header>
+
+        <div class="ls-layout">
+
+            <section class="ls-upload-card reveal">
+
+                @if (TempData["LeaseSummarizerError"] is string error)
+                {
+                    <div class="ls-alert ls-alert--error" role="alert">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        <span>@error</span>
+                    </div>
+                }
+
+                <div class="ls-upload-card__head">
+                    <h2>Upload your lease document</h2>
+                    <p class="ls-upload-card__sub">PDF, PNG, or JPEG &mdash; max 10 MB</p>
+                </div>
+
+                <form asp-action="Submit" method="post" enctype="multipart/form-data" id="lease-upload-form">
+                    @Html.AntiForgeryToken()
+
+                    <div class="ls-dropzone" id="ls-dropzone" tabindex="0" role="button" aria-label="Drop your lease file here or click to browse">
+                        <div class="ls-dropzone__inner">
+                            <div class="ls-dropzone__icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="16 16 12 12 8 16"/>
+                                    <line x1="12" y1="12" x2="12" y2="21"/>
+                                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                                </svg>
+                            </div>
+                            <p class="ls-dropzone__main">Drop your lease here</p>
+                            <p class="ls-dropzone__sub">or <span class="ls-dropzone__browse">click to browse</span></p>
+                        </div>
+                        <input id="leaseDocument" name="leaseDocument" type="file"
+                               class="ls-dropzone__input" accept=".pdf,.png,.jpg,.jpeg"
+                               required aria-hidden="true" tabindex="-1" />
+                    </div>
+
+                    <div class="ls-upload-meta" id="ls-upload-meta" hidden>
+                        <div class="ls-file-chip">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                            <span id="ls-file-chip-name">No file selected</span>
+                            <button type="button" class="ls-file-chip__remove" id="ls-file-remove" aria-label="Remove selected file">&times;</button>
+                        </div>
+                    </div>
+
+                    <div class="ls-upload-actions">
+                        <button type="submit" class="ls-submit-btn" id="ls-submit-btn" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 8 16 12 12 16"/>
+                                <line x1="8" y1="12" x2="16" y2="12"/>
+                            </svg>
+                            Analyze Lease
+                        </button>
+                        <p class="ls-privacy-note">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+                            Your file is processed securely and never stored on disk.
+                        </p>
+                    </div>
+                </form>
+            </section>
+
+            <aside class="ls-how-card reveal">
+                <h3 class="ls-how-card__title">How it works</h3>
+                <ol class="ls-steps">
+                    <li class="ls-step">
+                        <span class="ls-step__num">1</span>
+                        <div>
+                            <strong>Upload your lease</strong>
+                            <p>PDF, scanned image, or photo of your lease agreement.</p>
+                        </div>
+                    </li>
+                    <li class="ls-step">
+                        <span class="ls-step__num">2</span>
+                        <div>
+                            <strong>OCR &amp; AI analysis</strong>
+                            <p>Azure Document Intelligence reads the text; our AI extracts key terms and flags risky clauses.</p>
+                        </div>
+                    </li>
+                    <li class="ls-step">
+                        <span class="ls-step__num">3</span>
+                        <div>
+                            <strong>Review your summary</strong>
+                            <p>See rent, fees, deadlines, parties, and every clause that deserves a second look.</p>
+                        </div>
+                    </li>
+                </ol>
+
+                <div class="ls-what-we-find">
+                    <h4>What the AI extracts</h4>
+                    <ul class="ls-extracts">
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Monthly rent &amp; due date</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Security deposit &amp; other fees</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Lease start &amp; end dates</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Renewal &amp; early termination rules</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Who pays which utilities</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--green"></span>Move-out requirements</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--amber"></span>Late fee &amp; penalty clauses</li>
+                        <li><span class="ls-extract-dot ls-extract-dot--red"></span>High-risk / unusual clauses</li>
+                    </ul>
+                </div>
+
+                <p class="ls-disclaimer">
+                    This summary is AI-generated for informational purposes only and is not legal advice. Always review your full lease before signing.
+                </p>
+            </aside>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var dropzone  = document.getElementById("ls-dropzone");
+    var fileInput = document.getElementById("leaseDocument");
+    var meta      = document.getElementById("ls-upload-meta");
+    var chipName  = document.getElementById("ls-file-chip-name");
+    var removeBtn = document.getElementById("ls-file-remove");
+    var submitBtn = document.getElementById("ls-submit-btn");
+    var form      = document.getElementById("lease-upload-form");
+
+    function setFile(file) {
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { showError("File is too large. Maximum size is 10 MB."); return; }
+        var ext = file.name.split(".").pop().toLowerCase();
+        if (!["pdf","png","jpg","jpeg"].includes(ext)) { showError("Only PDF, PNG, or JPEG files are accepted."); return; }
+        chipName.textContent = file.name;
+        meta.hidden = false;
+        dropzone.classList.add("ls-dropzone--has-file");
+        submitBtn.disabled = false;
     }
 
-    <article class="mvp-card accent-indigo">
-        <h2>Upload lease document</h2>
-        <p class="mvp-text">Accepted files: PDF, PNG, or JPEG (max 10 MB).</p>
+    function clearFile() {
+        fileInput.value = "";
+        chipName.textContent = "No file selected";
+        meta.hidden = true;
+        dropzone.classList.remove("ls-dropzone--has-file");
+        submitBtn.disabled = true;
+    }
 
-        <form asp-action="Submit" method="post" enctype="multipart/form-data" class="mvp-form">
-            @Html.AntiForgeryToken()
-            <div class="mvp-form-grid">
-                <div class="mvp-field full">
-                    <label class="mvp-label" for="leaseDocument">Lease file</label>
-                    <input id="leaseDocument" name="leaseDocument" type="file" class="mvp-input" accept=".pdf,.png,.jpg,.jpeg" required />
-                </div>
-            </div>
-            <div class="mvp-actions">
-                <button type="submit" class="mvp-btn">Summarize lease</button>
-            </div>
-        </form>
-    </article>
-</section>
+    function showError(msg) {
+        var el = document.querySelector(".ls-alert--error");
+        if (!el) {
+            el = document.createElement("div");
+            el.className = "ls-alert ls-alert--error";
+            el.setAttribute("role", "alert");
+            el.innerHTML = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor' width='18' height='18' aria-hidden='true'><path fill-rule='evenodd' d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z' clip-rule='evenodd'/></svg><span></span>";
+            form.prepend(el);
+        }
+        el.querySelector("span").textContent = msg;
+        el.hidden = false;
+    }
 
+    dropzone.addEventListener("click", function () { fileInput.click(); });
+    dropzone.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", function () { setFile(fileInput.files[0]); });
+    removeBtn.addEventListener("click", function (e) { e.stopPropagation(); clearFile(); });
+
+    dropzone.addEventListener("dragover", function (e) { e.preventDefault(); dropzone.classList.add("ls-dropzone--drag"); });
+    dropzone.addEventListener("dragleave", function () { dropzone.classList.remove("ls-dropzone--drag"); });
+    dropzone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        dropzone.classList.remove("ls-dropzone--drag");
+        var f = e.dataTransfer.files[0];
+        if (f) {
+            try { var dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files; } catch (ex) {}
+            setFile(f);
+        }
+    });
+
+    form.addEventListener("submit", function () {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = "Uploading…";
+    });
+})();
+</script>
+}
