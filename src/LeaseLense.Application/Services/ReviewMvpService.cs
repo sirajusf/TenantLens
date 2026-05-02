@@ -24,6 +24,11 @@ public sealed class ReviewMvpService : IReviewMvpService
             query.MinRent,
             query.MaxRent,
             query.MinRating,
+            query.VerifiedOnly,
+            query.IssueTypes,
+            query.MinCommunicationRating,
+            query.MinMaintenanceRating,
+            query.SortBy,
             cancellationToken);
 
         var ratings = await _repository.GetReviewRatingsAsync(cancellationToken);
