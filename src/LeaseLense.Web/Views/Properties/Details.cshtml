@@ -1,63 +1,118 @@
 @model LeaseLense.Web.Models.Properties.PropertyProfileViewModel
 @{
     ViewData["Title"] = Model.Title;
+    var ratingClass = Model.AverageRating.HasValue
+        ? (Model.AverageRating.Value >= 4 ? "stat--good" : Model.AverageRating.Value >= 2.5m ? "stat--neutral" : "stat--bad")
+        : "stat--muted";
+    var scamClass = Model.AverageScamSeverity.HasValue
+        ? (Model.AverageScamSeverity.Value >= 3.5m ? "stat--bad" : Model.AverageScamSeverity.Value >= 2 ? "stat--neutral" : "stat--good")
+        : "stat--muted";
 }
 
 <section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>@Model.Title</h1>
-        @if (!string.IsNullOrWhiteSpace(Model.CommunityName))
-        {
-            <p class="mvp-subtext property-hero-community">@Model.CommunityName</p>
-        }
-        <p>@Model.StreetAddress, @Model.City, @Model.Country</p>
-        <div class="mvp-tags">
-            <span class="mvp-badge primary">Rating @(Model.AverageRating?.ToString("0.0") ?? "N/A")</span>
-            <span class="mvp-badge">Reviews @Model.ReviewCount</span>
-            <span class="mvp-badge">Reports @Model.ScamReports.Count</span>
-            <span class="mvp-badge warn">Scam severity @(Model.AverageScamSeverity?.ToString("0.0") ?? "N/A")</span>
+
+    <div class="prop-detail-hero">
+        <div class="prop-detail-hero__top">
+            <div class="prop-detail-hero__title-wrap">
+                <div class="prop-detail-hero__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="prop-detail-hero__name">@Model.Title</h1>
+                    @if (!string.IsNullOrWhiteSpace(Model.CommunityName))
+                    {
+                        <p class="prop-detail-hero__community">@Model.CommunityName</p>
+                    }
+                    <p class="prop-detail-hero__address">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true" style="flex-shrink:0">
+                            <path fill-rule="evenodd" d="M11.536 3.464a5 5 0 0 1 0 7.072L8 14.07l-3.536-3.534a5 5 0 1 1 7.072-7.072v.001zm1.06 8.132a6.5 6.5 0 1 0-9.192 0l3.535 3.536a1.5 1.5 0 0 0 2.12 0l3.537-3.536zM8 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" clip-rule="evenodd"/>
+                        </svg>
+                        @Model.StreetAddress, @Model.City, @Model.Country
+                    </p>
+                </div>
+            </div>
+            <div class="prop-detail-hero__actions">
+                <a class="mvp-btn ghost prop-action-btn" asp-controller="Reviews" asp-action="Create" asp-route-propertyId="@Model.PropertyId">
+                    Write a review
+                </a>
+                <a class="mvp-btn danger prop-action-btn" asp-controller="ScamReports" asp-action="Create" asp-route-propertyId="@Model.PropertyId">
+                    Report scam
+                </a>
+            </div>
+        </div>
+
+        <div class="prop-stats-bar">
+            <div class="prop-stat @ratingClass">
+                <span class="prop-stat__value">@(Model.AverageRating?.ToString("0.0") ?? "—")</span>
+                <span class="prop-stat__label">Avg rating</span>
+            </div>
+            <div class="prop-stat">
+                <span class="prop-stat__value">@Model.ReviewCount</span>
+                <span class="prop-stat__label">@(Model.ReviewCount == 1 ? "Review" : "Reviews")</span>
+            </div>
+            <div class="prop-stat @scamClass">
+                <span class="prop-stat__value">@(Model.AverageScamSeverity?.ToString("0.0") ?? "—")</span>
+                <span class="prop-stat__label">Scam severity</span>
+            </div>
+            <div class="prop-stat">
+                <span class="prop-stat__value">@Model.ScamReports.Count</span>
+                <span class="prop-stat__label">@(Model.ScamReports.Count == 1 ? "Report" : "Reports")</span>
+            </div>
             @if (!string.IsNullOrWhiteSpace(Model.LandlordName))
             {
-                <span class="mvp-badge">Landlord @Model.LandlordName</span>
+                <div class="prop-stat prop-stat--text">
+                    <span class="prop-stat__value prop-stat__value--sm">@Model.LandlordName</span>
+                    <span class="prop-stat__label">Landlord</span>
+                </div>
             }
             @if (!string.IsNullOrWhiteSpace(Model.ManagementCompanyName))
             {
-                <span class="mvp-badge">Mgmt @Model.ManagementCompanyName</span>
+                <div class="prop-stat prop-stat--text">
+                    <span class="prop-stat__value prop-stat__value--sm">@Model.ManagementCompanyName</span>
+                    <span class="prop-stat__label">Management</span>
+                </div>
             }
         </div>
     </div>
 
     <div class="section-head mt-3">
-        <h2>Reviews</h2>
-        <a class="section-link"
-           asp-controller="Reviews"
-           asp-action="Create"
-           asp-route-propertyId="@Model.PropertyId">Add review</a>
+        <h2>Tenant Reviews</h2>
+        <a class="section-link" asp-controller="Reviews" asp-action="Create" asp-route-propertyId="@Model.PropertyId">
+            + Add review
+        </a>
     </div>
     @if (!Model.Reviews.Any())
     {
-        <div class="mvp-empty">No reviews available for this property yet.</div>
+        <div class="mvp-empty">No reviews for this property yet. Be the first to share your experience.</div>
     }
     else
     {
         <div class="mvp-grid">
             @foreach (var review in Model.Reviews)
             {
-                <article class="mvp-card accent-indigo">
+                <article class="mvp-card accent-indigo prop-review-card">
                     <div class="mvp-card-head">
-                        <h2>@review.ReviewerAlias</h2>
-                        <span class="mvp-badge primary">@review.AverageRating.ToString("0.0")/5</span>
+                        <h2 class="prop-review-card__alias">@review.ReviewerAlias</h2>
+                        <span class="mvp-badge primary" title="Average rating">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="10" height="10" aria-hidden="true">
+                                <path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/>
+                            </svg>
+                            @review.AverageRating.ToString("0.0")/5
+                        </span>
                     </div>
                     <p class="mvp-subtext">@review.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</p>
-                    <p class="mvp-text">@review.ReviewText</p>
+                    <p class="mvp-text prop-review-card__text">@review.ReviewText</p>
                     <div class="mvp-tags">
                         @if (review.MonthlyRent.HasValue)
                         {
-                            <span class="mvp-badge">Rent @review.MonthlyRent.Value.ToString("C0")</span>
+                            <span class="mvp-badge">Rent @review.MonthlyRent.Value.ToString("C0")/mo</span>
                         }
                         @if (!string.IsNullOrWhiteSpace(review.VerificationBadge))
                         {
-                            <span class="mvp-badge success">@review.VerificationBadge</span>
+                            <span class="mvp-badge success">✓ @review.VerificationBadge</span>
                         }
                     </div>
                 </article>
@@ -66,36 +121,38 @@
     }
 
     <div class="section-head mt-4">
-        <h2>Reports</h2>
-        <a class="section-link"
-           asp-controller="ScamReports"
-           asp-action="Create"
-           asp-route-propertyId="@Model.PropertyId">Report scam</a>
+        <h2>Scam &amp; Fraud Reports</h2>
+        <a class="section-link" asp-controller="ScamReports" asp-action="Create" asp-route-propertyId="@Model.PropertyId">
+            + Report scam
+        </a>
     </div>
     @if (!Model.ScamReports.Any())
     {
-        <div class="mvp-empty">No scam reports available for this property yet.</div>
+        <div class="mvp-empty">No scam reports for this property — a good sign.</div>
     }
     else
     {
         <div class="mvp-grid">
             @foreach (var report in Model.ScamReports)
             {
+                var sev = report.SeverityScore ?? 0;
+                var sevClass = sev >= 3.5m ? "danger" : "warn";
                 <article class="mvp-card accent-coral">
                     <div class="mvp-card-head">
                         <h2>@report.ScamType</h2>
-                        <span class="mvp-badge danger">Severity @(report.SeverityScore?.ToString("0.0") ?? "N/A")</span>
+                        <span class="mvp-badge @sevClass">Severity @(report.SeverityScore?.ToString("0.0") ?? "N/A")</span>
                     </div>
                     <p class="mvp-subtext">@report.DateReported.ToLocalTime().ToString("MMM d, yyyy")</p>
                     <p class="mvp-text">@report.Description</p>
                     @if (!string.IsNullOrWhiteSpace(report.VerificationBadge))
                     {
                         <div class="mvp-tags">
-                            <span class="mvp-badge success">@report.VerificationBadge</span>
+                            <span class="mvp-badge success">✓ @report.VerificationBadge</span>
                         </div>
                     }
                 </article>
             }
         </div>
     }
+
 </section>

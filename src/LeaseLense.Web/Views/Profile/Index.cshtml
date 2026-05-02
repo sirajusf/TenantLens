@@ -4,18 +4,36 @@
 }
 
 <section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>Your Profile</h1>
-        <p>Manage your account, address, and residency verification for anonymous Verified Stay badges.</p>
+    <div class="page-hero">
+        <div class="page-hero__icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+            </svg>
+        </div>
+        <div class="page-hero__text">
+            <h1>Your Profile</h1>
+            <p>Manage your account, address, and residency verification for anonymous Verified Stay badges.</p>
+        </div>
     </div>
 
     @if (TempData["ProfileSuccess"] is string success)
     {
-        <div class="mvp-empty">@success</div>
+        <div class="mvp-notice mvp-notice--success" role="status">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <span>@success</span>
+        </div>
     }
     @if (TempData["ProfileError"] is string error)
     {
-        <div class="mvp-error">@error</div>
+        <div class="mvp-notice mvp-notice--error" role="alert">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            <span>@error</span>
+        </div>
     }
     <div class="profile-layout">
         <article class="mvp-card accent-cyan profile-card">

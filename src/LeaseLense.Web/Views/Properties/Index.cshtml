@@ -1,26 +1,96 @@
 @model LeaseLense.Web.Models.Properties.PropertyDirectoryPageViewModel
 @{
     ViewData["Title"] = "Properties";
+    var hasActiveFilters =
+        !string.IsNullOrWhiteSpace(Model.QueryText)
+        || !string.IsNullOrWhiteSpace(Model.City)
+        || Model.MinRating.HasValue;
 }
 
 <section class="mvp-shell reveal">
-    <div class="mvp-hero">
-        <h1>All Properties</h1>
-        <p>Search by property name or address, then open the property page for full reviews, reports, and reputation signals.</p>
-        <form method="get" class="search-bar" role="search" asp-controller="Properties" asp-action="Index">
-            <label class="sr-only" for="property-directory-search">Search properties by name or address</label>
-            <input id="property-directory-search" type="search" name="q" value="@Model.QueryText" placeholder="Search by community, name, or address..." />
-            <button type="submit">Search Properties</button>
-        </form>
+
+    <div class="page-hero">
+        <div class="page-hero__icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+        </div>
+        <div class="page-hero__text">
+            <h1>All Properties</h1>
+            <p>Search by community, name, or address — then open a property for full reviews, fraud signals, and reputation scores.</p>
+        </div>
     </div>
+
+    <form method="get" class="mvp-hero reviews-filter-panel" role="search" aria-labelledby="prop-filter-heading"
+          asp-controller="Properties" asp-action="Index">
+        <h2 class="reviews-filter-panel__title" id="prop-filter-heading">Find properties</h2>
+        <fieldset class="reviews-filters">
+            <legend class="visually-hidden">Filter and sort properties</legend>
+            <div class="reviews-filters__grid">
+                <div class="mvp-field reviews-filters__field reviews-filters__field--wide">
+                    <label class="reviews-filters__label" for="prop-filter-q">Community, property, or address</label>
+                    <input class="mvp-input" id="prop-filter-q" type="search" name="q" value="@Model.QueryText"
+                           placeholder="e.g. Lakeview Apartments or 123 Main St" autocomplete="off" />
+                </div>
+                <div class="mvp-field reviews-filters__field">
+                    <label class="reviews-filters__label" for="prop-filter-city">City</label>
+                    <input class="mvp-input" id="prop-filter-city" name="city" value="@Model.City"
+                           placeholder="e.g. Tampa" autocomplete="off" />
+                </div>
+                <div class="mvp-field reviews-filters__field">
+                    <label class="reviews-filters__label" for="prop-filter-min-rating">Min rating (0–5)</label>
+                    <input class="mvp-input" id="prop-filter-min-rating" name="minRating" type="number"
+                           step="0.5" min="0" max="5"
+                           value="@(Model.MinRating?.ToString() ?? "")" placeholder="e.g. 3.5" />
+                </div>
+                <div class="mvp-field reviews-filters__field">
+                    <label class="reviews-filters__label" for="prop-filter-sort">Sort by</label>
+                    <select class="mvp-select" id="prop-filter-sort" name="sortBy">
+                        <option value="" selected="@(string.IsNullOrEmpty(Model.SortBy) ? "selected" : null)">Relevance</option>
+                        <option value="rating" selected="@(Model.SortBy == "rating" ? "selected" : null)">Highest rated</option>
+                        <option value="reviews" selected="@(Model.SortBy == "reviews" ? "selected" : null)">Most reviewed</option>
+                    </select>
+                </div>
+            </div>
+            <div class="reviews-filters__actions">
+                @if (hasActiveFilters)
+                {
+                    <a class="reviews-filters__clear" asp-controller="Properties" asp-action="Index">Clear filters</a>
+                }
+                <button class="mvp-btn reviews-filters__submit" type="submit">Search</button>
+            </div>
+        </fieldset>
+    </form>
 
     @if (!Model.Properties.Any())
     {
-        <div class="mvp-empty mt-3">No properties found. Try a different name or address.</div>
+        <div class="reviews-state reviews-state--empty">
+            <h2 class="reviews-state__title">No properties found</h2>
+            <p class="reviews-state__text">
+                @if (hasActiveFilters)
+                {
+                    @:No properties match these filters. Try a broader search or clear your filters.
+                }
+                else
+                {
+                    @:No properties are listed yet. Try searching for a community or address.
+                }
+            </p>
+            <div class="reviews-state__actions">
+                @if (hasActiveFilters)
+                {
+                    <a class="mvp-btn" asp-controller="Properties" asp-action="Index">Clear filters</a>
+                }
+            </div>
+        </div>
     }
     else
     {
-        <div class="mvp-grid property-directory-grid mt-3">
+        <div class="prop-results-header">
+            <p class="scam-results-count">@Model.Properties.Count propert@(Model.Properties.Count == 1 ? "y" : "ies") found</p>
+        </div>
+        <div class="mvp-grid property-directory-grid">
             @foreach (var property in Model.Properties)
             {
                 <a class="mvp-card accent-cyan property-directory-card"
@@ -32,7 +102,12 @@
                         <h2 class="property-title">@property.Title</h2>
                         @if (property.AverageRating.HasValue)
                         {
-                            <span class="mvp-badge primary">@property.AverageRating.Value.ToString("0.0")/5</span>
+                            <span class="mvp-badge primary prop-dir-rating" title="Average rating">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="11" height="11" aria-hidden="true">
+                                    <path d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/>
+                                </svg>
+                                @property.AverageRating.Value.ToString("0.0")
+                            </span>
                         }
                     </div>
                     @if (!string.IsNullOrWhiteSpace(property.CommunityName))
@@ -40,17 +115,25 @@
                         <p class="mvp-subtext property-community">@property.CommunityName</p>
                     }
                     <p class="mvp-subtext property-address">@property.StreetAddress</p>
-                    <p class="mvp-text property-location">@property.City, @property.Country</p>
+                    <p class="mvp-text property-location">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true" style="flex-shrink:0">
+                            <path fill-rule="evenodd" d="M11.536 3.464a5 5 0 0 1 0 7.072L8 14.07l-3.536-3.534a5 5 0 1 1 7.072-7.072v.001zm1.06 8.132a6.5 6.5 0 1 0-9.192 0l3.535 3.536a1.5 1.5 0 0 0 2.12 0l3.537-3.536zM8 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" clip-rule="evenodd"/>
+                        </svg>
+                        @property.City, @property.Country
+                    </p>
                     <div class="mvp-tags">
-                        <span class="mvp-badge">Open property</span>
                         @if (property.AverageScamSeverity.HasValue)
                         {
-                            <span class="mvp-badge warn">Scam severity @property.AverageScamSeverity.Value.ToString("0.0")</span>
+                            <span class="mvp-badge warn" title="Average scam severity">
+                                ⚠ Scam severity @property.AverageScamSeverity.Value.ToString("0.0")
+                            </span>
                         }
+                        <span class="mvp-badge prop-open-badge">View →</span>
                     </div>
                 </a>
             }
         </div>
     }
+
 </section>
 <button type="button" class="list-top-btn" data-scroll-top aria-label="Back to top">Top</button>
