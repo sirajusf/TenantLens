@@ -22,6 +22,10 @@ public sealed class ReviewsController : Controller
         decimal? minRent,
         decimal? maxRent,
         decimal? minRating,
+        decimal? minCommunicationRating,
+        decimal? minMaintenanceRating,
+        bool verifiedOnly,
+        [FromQuery] List<string>? issueTypes,
         string? sortBy,
         CancellationToken cancellationToken)
     {
@@ -32,6 +36,10 @@ public sealed class ReviewsController : Controller
             MinRent = minRent,
             MaxRent = maxRent,
             MinRating = minRating,
+            MinCommunicationRating = minCommunicationRating,
+            MinMaintenanceRating = minMaintenanceRating,
+            VerifiedOnly = verifiedOnly,
+            IssueTypes = issueTypes is { Count: > 0 } ? issueTypes : null,
             SortBy = sortBy
         };
 
@@ -51,6 +59,10 @@ public sealed class ReviewsController : Controller
                 MinRent = minRent,
                 MaxRent = maxRent,
                 MinRating = minRating,
+                MinCommunicationRating = minCommunicationRating,
+                MinMaintenanceRating = minMaintenanceRating,
+                VerifiedOnly = verifiedOnly,
+                IssueTypes = issueTypes,
                 SortBy = sortKey,
                 HasLoadError = true,
                 LoadErrorMessage = "We couldn't load reviews right now. Please try again in a moment.",
@@ -67,6 +79,10 @@ public sealed class ReviewsController : Controller
             MinRent = minRent,
             MaxRent = maxRent,
             MinRating = minRating,
+            MinCommunicationRating = minCommunicationRating,
+            MinMaintenanceRating = minMaintenanceRating,
+            VerifiedOnly = verifiedOnly,
+            IssueTypes = issueTypes,
             SortBy = sortKey,
             Summary = new ReviewSummaryViewModel
             {

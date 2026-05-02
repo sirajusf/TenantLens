@@ -20,8 +20,13 @@ public sealed class PropertyDirectoryService : IPropertyDirectoryService
     {
         var matches = await _coreSearch.SearchPropertiesAsync(
             query.QueryText,
-            city: null,
+            query.City,
             Math.Clamp(query.Limit, 1, 200),
+            query.PropertyType,
+            query.LandlordName,
+            query.MinRating,
+            query.HasVerifiedReviews,
+            query.SortBy,
             cancellationToken);
 
         var reviews = await _repository.GetReviewsAsync(cancellationToken);

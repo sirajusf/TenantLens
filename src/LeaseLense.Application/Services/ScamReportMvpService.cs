@@ -20,6 +20,10 @@ public sealed class ScamReportMvpService : IScamReportMvpService
         string? queryText = null,
         string? city = null,
         decimal? minSeverity = null,
+        string? scamType = null,
+        decimal? maxSeverity = null,
+        DateOnly? dateReportedAfter = null,
+        string? sortBy = null,
         CancellationToken cancellationToken = default)
     {
         var matches = await _coreSearch.SearchScamReportsAsync(
@@ -27,6 +31,10 @@ public sealed class ScamReportMvpService : IScamReportMvpService
             city,
             minSeverity,
             limit: 100,
+            scamType,
+            maxSeverity,
+            dateReportedAfter,
+            sortBy,
             cancellationToken);
 
         var verifications = await _repository.GetRenterPropertyVerificationsAsync(cancellationToken);
