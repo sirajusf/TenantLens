@@ -64,6 +64,7 @@
                         </svg>
                         Smart Search
                     </a>
+                    <a asp-area="" asp-controller="Home" asp-action="About" class="@(currentController == "Home" && currentAction == "About" ? "active" : null)">About</a>
                     @if (User.Identity?.IsAuthenticated ?? false)
                     {
                         <a asp-area="" asp-controller="LeaseSummarizer" asp-action="Index" class="@(currentController == "LeaseSummarizer" ? "active" : null)">Lease Summarizer</a>
