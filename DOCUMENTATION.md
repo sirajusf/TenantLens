@@ -23,7 +23,7 @@
    - [Reputation System](#69-reputation-system)
    - [Search](#610-search)
    - [Lease Summarizer](#611-lease-summarizer)
-  - [Robust NL Mixed Search](#612-robust-nl-mixed-search)
+   - [Unified Smart Search](#612-unified-smart-search)
 7. [External Services](#7-external-services)
 8. [Security](#8-security)
 9. [How the App Starts Up](#9-how-the-app-starts-up)
@@ -42,7 +42,7 @@ LeaseLense is a **rental property transparency platform** built for renters. The
 - Verify their past residency at a property by uploading a document (bank statement, utility bill, or lease) — verified reviews carry a **"Verified Stay"** badge
 - View a reputation leaderboard of the most- and least-reputable properties
 - **Upload a lease document (PDF / PNG / JPEG) and receive an AI-generated summary** — rent, fees, deposits, lease term, notice requirements, move-out rules, and a colour-coded risk assessment with flagged clauses
-- **Use Robust NL Mixed Search** — type a plain-English query like *"cheap apartments in Tampa with verified reviews and recent scam reports"* and the AI detects intent across properties/reviews/scam reports, extracts filters, and returns grouped results for selected entity types
+- **Use Unified Smart Search** — the `/Search` page auto-detects whether a query needs AI parsing: short queries with qualifiers ("cheap Tampa", "scam reports", "verified reviews") and all 4+ word queries are parsed by an LLM that extracts city, rent range, sub-ratings, issue tags, scam type, dates, and entity type. If AI is unavailable, keyword search is the seamless fallback
 
 **The core value proposition:** Every piece of data on LeaseLense comes from real renters. Verified Stay badges give other users a signal that a review was posted by someone who actually lived at the property, not a troll or a landlord's friend. The Lease Summarizer adds a pre-signing AI layer: before a renter commits, they can get a structured breakdown of any lease in seconds.
 
@@ -891,6 +891,61 @@ flowchart TD
 
 ---
 
+### 6.12 Unified Smart Search
+
+The `/Search` page is the platform's unified search hub. There is no separate "Smart Search" page — NL parsing is transparently applied inside the normal search flow based on the query.
+
+#### Routing logic (`SmartSearchOrchestrator`)
+
+```mermaid
+flowchart TD
+    A["User submits query on /Search"] --> B{"ShouldUseNlFirst?\n≥4 words OR\nqualifier word present\n(cheap, scam, verified, mold…)"}
+
+    B -->|Yes — long or qualified| C["AzureFoundryNlQueryParserClient\nTryParseAsync()"]
+    C --> D{"LLM succeeded?"}
+    D -->|Yes| E["Build SearchQueryDto from parsed result\n(city, propertyType, maxRent, minRating,\nminCommunicationRating, minMaintenanceRating,\nissueTypes, scamType, dateReportedAfter, sortBy…)"]
+    D -->|No / timeout| F["Keyword fallback\nqueryText = raw query\nentityType = Property"]
+
+    B -->|No — short keyword| G["Keyword search first\n(fast path, no LLM)"]
+    G --> H{"0 results?"}
+    H -->|No| I["Return results"]
+    H -->|Yes — second chance| C
+
+    E --> J["SmartSearchOrchestrator.ExecuteAsync()\nRun CoreSearchService per selected entity"]
+    F --> J
+    J --> K["Return grouped results:\nProperties / Reviews / ScamReports"]
+    K --> L["UI shows:\n• Emoji filter chips (📍💰⭐🔧✅⚠️📅)\n• LLM-unavailable notice (if applicable)\n• AI-fallback notice (if keyword was empty)"]
+```
+
+#### What the LLM prompt extracts
+
+The system prompt (`Prompts/nl_search_system_prompt.txt`) is loaded and enriched with the current date at request time (`{{TODAY}}` substitution). It teaches the model to populate:
+
+| Field | Example trigger |
+|---|---|
+| `city` | "in Tampa", "near Orlando" |
+| `propertyType` | "apartments", "houses", "studio" |
+| `maxRent` | "cheap" → 1500, "under $1800", "luxury" → minRent:3000 |
+| `minRating` | "highly rated" → 4.0, "decent" → 3.0, "excellent" → 4.5 |
+| `minCommunicationRating` | "responsive landlord" → 3.5, "great communication" → 4.0 |
+| `minMaintenanceRating` | "well maintained" → 3.5, "great upkeep" → 4.0 |
+| `verifiedOnly` / `hasVerifiedReviews` | "verified stays", "verified reviews" |
+| `issueTypes` | "mold" → ["mold"], "roaches" → ["pests"], "noisy" → ["noise"] |
+| `scamType` | "deposit theft" → "deposit_scam", "fake listing" → "fake_listing" |
+| `minSeverity` | "dangerous scams" → 3.5, "serious" → 3.5 |
+| `dateReportedAfter` | "last 6 months" → TODAY−6 months (computed by LLM from injected date) |
+| `sortBy` | "highest rated" → "rating", "most recent" → "newest", "worst scams" → "severity" |
+| `queryText` | **null** when filters capture full intent; only set for building names or street fragments |
+
+#### Key engineering decisions
+
+- **`queryText: null` rule** — the old behaviour defaulted `queryText` to the raw user string even when the LLM said null, causing keyword noise on top of structured filters. Fixed: `queryText` is now only preserved if the LLM omits the field entirely.
+- **Sub-ratings wired end-to-end** — `minCommunicationRating` and `minMaintenanceRating` existed in `SearchQueryDto` and `CoreSearchService` but were never populated because the parser didn't read them. Now the prompt teaches them and the parser writes them.
+- **Qualifier-word trigger** — `ShouldUseNlFirst()` fires NL for any query containing words like "cheap", "scam", "verified", "mold", "recent", "with", etc., regardless of word count. "cheap Tampa" (2 words) correctly routes to NL; "Bayshore Commons" (a building name, no qualifiers) stays keyword.
+- **Date injection** — `BuildSystemPrompt()` replaces `{{TODAY}}` and precomputed offsets at call time, so relative time expressions always resolve correctly.
+
+---
+
 ## 7. External Services
 
 ### Azure Key Vault — Startup Secrets Loading
@@ -1011,7 +1066,8 @@ sequenceDiagram
     Main->>DI: builder.Services.AddControllersWithViews()
     Main->>DI: AddApplication() — register all 9 services
     Main->>DI: AddInfrastructure() — register EF Core contexts + ILeaseLensRepository
-    Main->>DI: Register Gmail, Azure Document Intelligence, LLM client
+    Main->>DI: Register Gmail, Azure Document Intelligence, LLM clients<br/>(AddressExtraction, LeaseSummarization, NlQueryParser)
+    Main->>DI: Register SmartSearchOrchestrator (scoped)
     Main->>DI: Register ResidencyFallbackQueue (singleton)
     Main->>DI: AddHostedService<ResidencyFallbackWorker>()
     Main->>DI: AddIdentity<IdentityUser>() with password policy
@@ -1093,21 +1149,24 @@ A: Yes — the SHA-256 hash is stored on `LeaseDocument` for traceability, but u
 **Q: How does the Lease Summarizer relate to the Residency Verification? Are they the same feature?**  
 A: They share the same Azure infrastructure (Document Intelligence for OCR, Azure AI Foundry for LLM) but serve different purposes. Residency Verification checks whether a *renter* lived at a *specific property* — it extracts name, address, and date from proof documents and scores the match. The Lease Summarizer analyzes a *lease document* to help the renter understand what they are about to sign — it extracts contract terms, financial obligations, and risk clauses. The verification path is synchronous (or near-synchronous via `ResidencyFallbackWorker`); the lease path is always async via `LeaseSummarizationWorker`.
 
-**Q: How does Smart Search work technically?**  
-A: The user's query is sent to `AzureFoundryNlQueryParserClient`, which calls Azure AI Foundry with `nl_search_system_prompt.txt`. The model now returns a multi-intent payload: `targetEntityTypes`, `queriesByEntity`, and `interpretedFilters`. `SmartSearchOrchestrator` then decides execution strategy (long-query NL-first vs short-query keyword-first with NL second chance), runs only selected entity searches for global search, and returns grouped sections for Properties, Reviews, and Scam Reports.
+**Q: How does the unified search work technically?**  
+A: Every query submitted to `/Search` passes through `SmartSearchOrchestrator`. It first calls `ShouldUseNlFirst()`: if the query has 4+ words, or contains any qualifier word (cheap, scam, verified, mold, recent, with, not, …), it routes to `AzureFoundryNlQueryParserClient` before doing any database work. The LLM returns `targetEntityTypes`, `queriesByEntity` (one structured `SearchQueryDto` per entity including city, rent, sub-ratings, issue tags, dates), and `interpretedFilters`. The orchestrator then runs `ICoreSearchService` for each selected entity and returns grouped results. Short keyword-only queries go directly to the database and only invoke the LLM as a second chance if results are empty.
 
-**Q: What happens if the LLM misinterprets the query?**  
-A: The user sees interpreted filter chips showing what the model extracted. If parsing is poor, keyword behavior still protects the experience: short queries run keyword first, and long queries fall back to keyword when NL fails. On scoped pages (Properties/Reviews/ScamReports), entity forcing prevents cross-entity drift even if the model suggests multiple targets.
+**Q: There's no separate "Smart Search" page anymore — where did it go?**  
+A: It was merged into the normal `/Search` page. Previously there was a dedicated nav link with special branding. Now the nav has a plain "Search" link. The routing logic (`ShouldUseNlFirst`) makes NL parsing invisible to the user — it just happens when appropriate. The interpreted filter chips show users what the AI extracted, without requiring them to opt into a separate mode.
 
-**Q: Why is Smart Search available to unauthenticated users when other AI features require login?**  
-A: The Lease Summarizer stores data (LeaseDocument, LeaseSummarizationJob, LeaseAnalysis) tied to a renter account, so authentication is required. Smart Search is stateless — nothing is stored, no account data is read, and the only operation is reading existing public-facing data (properties, reviews, scam reports). Requiring login would add friction with no security benefit.
+**Q: What happens if the LLM misinterprets or fails?**  
+A: Multiple safety nets: (1) If the LLM times out or errors, the orchestrator falls back to a plain keyword search with a yellow "AI temporarily unavailable" notice. (2) If structured filters match nothing, the orchestrator tries keyword search as a second pass. (3) If a short keyword search returns nothing, the AI gets a second-chance call. The user always gets results or a clear empty state — never a silent failure.
 
-**Q: Does Smart Search hit the database differently from the typed filter pages?**  
-A: No. Both paths still use `ICoreSearchService` over `ILeaseLensRepository`. Smart Search adds NLP parsing and orchestration, but does not introduce a separate data access path. Mixed search simply runs selected entity queries through the same core engine.
+**Q: Why is the search available to unauthenticated users when other AI features require login?**  
+A: The Lease Summarizer stores data (LeaseDocument, LeaseSummarizationJob, LeaseAnalysis) tied to a renter account, so authentication is required. Search is stateless — nothing is stored, no account data is read, and the only operations are reads on public property/review/scam data. Requiring login would add friction with no security benefit.
 
-**Q: How is the Smart Search system prompt kept accurate?**  
-A: The prompt is a plain text file (`Prompts/nl_search_system_prompt.txt`) loaded at startup. It now defines a strict multi-entity schema (`targetEntityTypes` + `queriesByEntity`) plus normalization and conflict rules. `interpretedFilters` remains the audit/trust layer in the UI, showing exactly what was extracted.
+**Q: Does the unified search hit the database differently from the individual filter pages?**  
+A: No. Both paths use `ICoreSearchService` over `ILeaseLensRepository`. The orchestrator adds NLP parsing and routing on top, but the data access path is identical. The individual pages (Properties, Reviews, ScamReports) each call their respective service directly; the unified search calls the same services via the orchestrator.
+
+**Q: What improved in the NL search prompt compared to the earlier version?**  
+A: Several critical fixes and additions: (1) `queryText: null` is now respected — the LLM can explicitly return null to suppress keyword matching when structured filters already capture full intent (previously the parser always fell back to the raw user string). (2) `minCommunicationRating` and `minMaintenanceRating` are now in the prompt schema and parsed — they were wired in the database but never populated. (3) Date expressions ("last 6 months", "this year") now work because `{{TODAY}}` is injected at call time. (4) Rich semantic mappings: rent tiers, issue type keywords, scam type normalization, sub-rating qualifiers. (5) Emoji-prefixed filter chips (📍 💰 ⭐ 🔧 ✅ ⚠️ 📅) for visual scanning. (6) `max_tokens: 1200` prevents JSON truncation on multi-entity queries.
 
 ---
 
-*Documentation generated May 2026. Reflects the current state of the LeaseLense codebase including the Lease Summarizer and Robust NL Mixed Search features.*
+*Documentation generated May 2026. Reflects the current state of the LeaseLense codebase including the Lease Summarizer, Unified Smart Search (with qualifier-triggered NL routing, sub-rating extraction, and date injection), and About page.*
