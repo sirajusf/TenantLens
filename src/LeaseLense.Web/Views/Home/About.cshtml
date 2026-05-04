@@ -1,31 +1,99 @@
 @{
-    ViewData["Title"] = "About";
+    Layout = null;
 }
 
-<section class="page-frame reveal">
-    <div class="content-hero">
-        <h1>About TenantLens</h1>
-        <p>
-            TenantLens helps renters make high-confidence lease decisions using community-verified reviews,
-            scam intelligence, and transparent cost signals before they commit.
-        </p>
-        <p><a asp-controller="Home" asp-action="Index" class="inline-link">Back to Home</a></p>
-    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Us | Tenant Intelligence</title>
+  <link rel="stylesheet" href="~/styles/styles.css" asp-append-version="true" />
+<script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2026/04/08/18/20260408181007-HL7V5QTY.js" defer></script>
+</head>
 
-    <div class="content-grid">
-        <article class="content-card">
-            <h2>Mission</h2>
-            <p>
-                Reduce housing risk for students, families, and professionals by making rental experiences
-                easier to compare and safer to evaluate.
-            </p>
-        </article>
-        <article class="content-card">
-            <h2>What makes it different</h2>
-            <p>
-                We combine structured tenant input, scam reporting, and AI-assisted insight into one clean
-                interface with privacy-first defaults.
-            </p>
-        </article>
-    </div>
-</section>
+<body>
+  <div class="page-shell">
+    <header class="main-nav">
+      <div class="brand"><a href="/">Tenant Intelligence</a></div>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/Properties">Reputation</a></li>
+        <li><a href="/Reviews">Reviews</a></li>
+        <li><a href="/Properties">CRUD Demo</a></li>
+        <li><a href="/LeaseSummarizer">Lease Scanner</a></li>
+        <li><a href="/ScamReports">Scam Reports</a></li>
+        <li><a href="/Home/Visualizations">Analytics</a></li>
+        <li><a href="/Home/About">About</a></li>
+      </ul>
+    </header>
+
+    <section class="page-header">
+      <div class="hero-card">
+        <h1>About our team</h1>
+        <p>Meet the four contributors behind this tenant intelligence platform prototype.</p>
+      </div>
+    </section>
+
+    <section class="grid-2" style="margin-top: 24px;">
+      <article class="panel team-card">
+        <img src="/Siraj2.jpeg" alt="Mahammad Siraj" class="siraj" />
+        <div>
+          <h2>Mahammad Siraj Cheruvu</h2>
+          <p class="role">Project Lead</p>
+          <p>Coordinated planning, product vision, and final integration.</p>
+        </div>
+      </article>
+      <article class="panel team-card">
+        <img src="/Lakshmi.jpeg" alt="Lakshmi Narayana" class="lakshmi" />
+        <div>
+          <h2>Lakshmi Narayana Nallamothu</h2>
+          <p class="role">Frontend Developer</p>
+          <p>Built responsive UI, theme system, and interaction behavior.</p>
+        </div>
+      </article>
+      <article class="panel team-card">
+        <div class="avatar avatar--venky">
+          <img src="/Venky.jpeg" alt="Venkateswararao Jannegorla" class="venky" />
+        </div>
+        <div>
+          <h2>Venkateswararao Jannegorla</h2>
+          <p class="role">Data &amp; AI Analyst</p>
+          <p>Defined AI feature flows, risk logic, and model-facing inputs.</p>
+        </div>
+      </article>
+      <article class="panel team-card">
+        <div class="avatar avatar--aravind">
+          <img src="/Aravind.PNG" alt="Aravind Polavarapu" class="aravind" />
+        </div>
+        <div>
+          <h2>Aravind Polavarapu</h2>
+          <p class="role">Documentation &amp; QA</p>
+          <p>Prepared documentation, validation notes, and review feedback.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top: 24px;">
+      <h2>GitHub repository</h2>
+      <a class="btn" href="https://github.com/ln1620/AppDev_Assignment3" target="_blank" rel="noreferrer">Visit GitHub Repo</a>
+    </section>
+
+    <section class="panel" style="margin-top: 24px;">
+      <h2>Logical data model</h2>
+      <img
+        class="logical-model-img"
+        src="/logical-data-model.png"
+        alt="Logical data model diagram for Tenant Intelligence: Property, ReputationSnapshot, TenantReview, LeaseDocument, ClauseWarning, ScamReport, and CostEstimate with PK and FK labels"
+        loading="lazy"
+      />
+    </section>
+
+    <footer class="footer">
+      <p>&copy; 2026 Tenant Intelligence</p>
+    </footer>
+  </div>
+  <script src="~/js/script.js" asp-append-version="true"></script>
+</body>
+</html>
