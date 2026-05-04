@@ -1,0 +1,328 @@
+@model LeaseLense.Web.Models.Search.NlSearchViewModel
+@using LeaseLense.Application.Search
+@{
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.Query) ? "Smart Search" : $"Search: {Model.Query}";
+
+    var entityLabel = Model.EntityType switch
+    {
+        SearchEntityType.Review => "Reviews",
+        SearchEntityType.ScamReport => "Scam Reports",
+        _ => "Properties"
+    };
+}
+
+<div class="nls-page">
+    <div class="container">
+
+        <!-- ── Search hero ── -->
+        <header class="nls-hero reveal">
+            <div class="nls-hero__top">
+                <div class="nls-hero__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <path d="M11 8a3 3 0 0 1 0 6"/>
+                    </svg>
+                </div>
+                <div class="nls-hero__text">
+                    <h1>Smart Search</h1>
+                    <p>Describe what you're looking for in plain English — the AI extracts filters automatically.</p>
+                </div>
+            </div>
+
+            <form method="get" asp-controller="Search" asp-action="Index" class="nls-search-form" role="search">
+                <label class="sr-only" for="nls-input">Smart search query</label>
+                <div class="nls-search-bar">
+                    <svg class="nls-search-bar__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input id="nls-input" class="nls-search-bar__input" type="search" name="q"
+                           value="@Model.Query"
+                           placeholder="e.g. cheap apartments in Tampa with good ratings and verified reviews"
+                           autocomplete="off" />
+                    <button type="submit" class="nls-search-bar__btn">Search</button>
+                </div>
+                <div class="nls-example-chips" aria-label="Example queries">
+                    <span class="nls-example-label">Try:</span>
+                    <button type="button" class="nls-chip" data-example="apartments in Tampa under $1500 with good ratings">apartments in Tampa under $1500</button>
+                    <button type="button" class="nls-chip" data-example="verified tenant reviews for houses in Orlando">verified reviews in Orlando</button>
+                    <button type="button" class="nls-chip" data-example="scam reports with high severity in Miami">high severity scams in Miami</button>
+                    <button type="button" class="nls-chip" data-example="landlords with poor maintenance ratings">poor maintenance landlords</button>
+                </div>
+            </form>
+        </header>
+
+        @if (Model.HasSearched)
+        {
+            <!-- ── LLM unavailable notice ── -->
+            @if (Model.LlmUnavailable)
+            {
+                <div class="mvp-notice mvp-notice--error nls-llm-notice" role="alert">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>AI parsing is currently unavailable — showing basic keyword results instead.</span>
+                </div>
+            }
+
+            <!-- ── Interpreted filters ── -->
+            @if (Model.InterpretedFilters.Any())
+            {
+                <div class="nls-interpretation reveal" aria-label="Interpreted search filters">
+                    <span class="nls-interpretation__label">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+                        </svg>
+                        AI extracted:
+                    </span>
+                    @foreach (var filter in Model.InterpretedFilters)
+                    {
+                        <span class="nls-filter-chip">@filter</span>
+                    }
+                    <span class="nls-entity-chip nls-entity-chip--@(Model.EntityType.ToString().ToLower())">@entityLabel</span>
+                </div>
+            }
+
+            <!-- ── Results count ── -->
+            <div class="nls-results-header reveal">
+                <p class="nls-results-count">
+                    @if (Model.TotalResults == 0)
+                    {
+                        @:No @entityLabel.ToLower() found
+                    }
+                    else
+                    {
+                        @:@Model.TotalResults @(Model.TotalResults == 1 ? entityLabel.TrimEnd('s') : entityLabel) found
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Query))
+                    {
+                        <span class="nls-results-query">for &ldquo;@Model.Query&rdquo;</span>
+                    }
+                </p>
+            </div>
+
+            <!-- ── Property results ── -->
+            @if (Model.PropertyResults.Any())
+            {
+                <div class="mvp-grid property-directory-grid reveal">
+                    @foreach (var match in Model.PropertyResults)
+                    {
+                        var p = match.Property;
+                        <a class="mvp-card accent-cyan property-directory-card"
+                           asp-controller="Properties"
+                           asp-action="Details"
+                           asp-route-id="@p.PropertyId"
+                           aria-label="Open @p.Title property page">
+                            <div class="mvp-card-head">
+                                <h2 class="property-title">@p.Title</h2>
+                                @if (!string.IsNullOrWhiteSpace(p.PropertyType))
+                                {
+                                    <span class="mvp-badge">@p.PropertyType</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(match.CommunityName))
+                            {
+                                <p class="mvp-subtext property-community">@match.CommunityName</p>
+                            }
+                            <p class="mvp-subtext property-address">@p.StreetAddress</p>
+                            <p class="mvp-text property-location">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true" style="flex-shrink:0">
+                                    <path fill-rule="evenodd" d="M11.536 3.464a5 5 0 0 1 0 7.072L8 14.07l-3.536-3.534a5 5 0 1 1 7.072-7.072v.001zm1.06 8.132a6.5 6.5 0 1 0-9.192 0l3.535 3.536a1.5 1.5 0 0 0 2.12 0l3.537-3.536zM8 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" clip-rule="evenodd"/>
+                                </svg>
+                                @p.City, @p.Country
+                            </p>
+                            <div class="mvp-tags">
+                                @if (!string.IsNullOrWhiteSpace(p.LandlordName))
+                                {
+                                    <span class="mvp-badge">@p.LandlordName</span>
+                                }
+                                <span class="mvp-badge prop-open-badge">View →</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+
+            <!-- ── Review results ── -->
+            @if (Model.ReviewResults.Any())
+            {
+                <div class="mvp-grid reveal">
+                    @foreach (var match in Model.ReviewResults)
+                    {
+                        var rv = match.Review;
+                        var isVerified = string.Equals(rv.VerificationStatus, "verified_stay", StringComparison.OrdinalIgnoreCase);
+                        <article class="mvp-card accent-indigo">
+                            <div class="mvp-card-head">
+                                <h2>@(match.Property?.Title ?? "Unknown property")</h2>
+                                @if (isVerified)
+                                {
+                                    <span class="mvp-badge success">✓ Verified</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(match.CommunityName))
+                            {
+                                <p class="mvp-subtext">@match.CommunityName</p>
+                            }
+                            @if (match.Property is not null)
+                            {
+                                <p class="mvp-subtext">@match.Property.StreetAddress, @match.Property.City</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(rv.ReviewText))
+                            {
+                                <p class="mvp-text nls-review-text">@rv.ReviewText</p>
+                            }
+                            <div class="mvp-tags">
+                                @if (rv.MonthlyRent.HasValue)
+                                {
+                                    <span class="mvp-badge">Rent @rv.MonthlyRent.Value.ToString("C0")/mo</span>
+                                }
+                                @if (rv.MoveInYear.HasValue)
+                                {
+                                    <span class="mvp-badge">Moved in @rv.MoveInYear</span>
+                                }
+                                <a class="card-action-link" asp-controller="Properties" asp-action="Details" asp-route-id="@rv.PropertyId">View property →</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+
+            <!-- ── Scam report results ── -->
+            @if (Model.ScamReportResults.Any())
+            {
+                <div class="mvp-grid reveal">
+                    @foreach (var match in Model.ScamReportResults)
+                    {
+                        var sr = match.ScamReport;
+                        var sev = sr.SeverityScore ?? 0;
+                        var sevClass = sev >= 4 ? "danger" : sev >= 2.5m ? "warn" : "primary";
+                        var cardAccent = sev >= 4 ? "accent-coral" : "accent-indigo";
+                        <article class="mvp-card @cardAccent scam-report-card">
+                            <div class="mvp-card-head">
+                                <h2 class="scam-report-card__title">@(match.Property?.Title ?? "Unknown property")</h2>
+                                <span class="mvp-badge @sevClass scam-severity-badge">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="11" height="11" aria-hidden="true">
+                                        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                    </svg>
+                                    Severity @sev.ToString("0.0")
+                                </span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(match.CommunityName))
+                            {
+                                <p class="mvp-subtext">@match.CommunityName</p>
+                            }
+                            <div class="scam-report-card__meta">
+                                <span class="scam-meta-chip scam-meta-chip--type">@sr.ScamType</span>
+                                @if (match.Property is not null)
+                                {
+                                    <span class="scam-meta-chip scam-meta-chip--city">@match.Property.City</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(sr.Description))
+                            {
+                                <p class="mvp-text scam-report-card__desc">@sr.Description</p>
+                            }
+                            <div class="mvp-tags scam-report-card__footer">
+                                <span class="mvp-badge">@sr.DateReported.ToLocalTime().ToString("MMM d, yyyy")</span>
+                                <a class="card-action-link scam-report-card__link" asp-controller="Properties" asp-action="Details" asp-route-id="@sr.PropertyId">View property →</a>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+
+            <!-- ── Empty state ── -->
+            @if (Model.TotalResults == 0)
+            {
+                <div class="nls-empty reveal">
+                    <div class="nls-empty__icon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    </div>
+                    <h2 class="nls-empty__title">No results found</h2>
+                    <p class="nls-empty__text">Try rephrasing your query, removing some filters, or searching for a different city.</p>
+                    <a class="mvp-btn" asp-controller="Search" asp-action="Index">Clear search</a>
+                </div>
+            }
+        }
+        else
+        {
+            <!-- ── Landing state ── -->
+            <div class="nls-landing reveal">
+                <h2 class="nls-landing__title">How it works</h2>
+                <div class="nls-how-grid">
+                    <div class="nls-how-card">
+                        <div class="nls-how-card__num">1</div>
+                        <div>
+                            <strong>Type naturally</strong>
+                            <p>Describe what you want in plain English — no need to fill in separate filter fields.</p>
+                        </div>
+                    </div>
+                    <div class="nls-how-card">
+                        <div class="nls-how-card__num">2</div>
+                        <div>
+                            <strong>AI parses your intent</strong>
+                            <p>Azure AI Foundry reads your query and extracts city, rent range, ratings, and more.</p>
+                        </div>
+                    </div>
+                    <div class="nls-how-card">
+                        <div class="nls-how-card__num">3</div>
+                        <div>
+                            <strong>See structured results</strong>
+                            <p>Results are fetched using the same enriched search engine that powers all platform filters.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nls-examples">
+                    <h3 class="nls-examples__title">Example queries</h3>
+                    <div class="nls-example-list">
+                        <div class="nls-example-item">
+                            <span class="nls-example-item__q">"cheap apartments in Tampa under $1500"</span>
+                            <span class="nls-example-item__tags">
+                                <span class="nls-filter-chip">City: Tampa</span>
+                                <span class="nls-filter-chip">Max rent: $1,500</span>
+                                <span class="nls-entity-chip nls-entity-chip--property">Properties</span>
+                            </span>
+                        </div>
+                        <div class="nls-example-item">
+                            <span class="nls-example-item__q">"verified tenant reviews with high ratings in Orlando"</span>
+                            <span class="nls-example-item__tags">
+                                <span class="nls-filter-chip">City: Orlando</span>
+                                <span class="nls-filter-chip">Verified only</span>
+                                <span class="nls-filter-chip">Min rating: 4.0</span>
+                                <span class="nls-entity-chip nls-entity-chip--review">Reviews</span>
+                            </span>
+                        </div>
+                        <div class="nls-example-item">
+                            <span class="nls-example-item__q">"scam reports with high severity in Miami"</span>
+                            <span class="nls-example-item__tags">
+                                <span class="nls-filter-chip">City: Miami</span>
+                                <span class="nls-filter-chip">Min severity: 3.5</span>
+                                <span class="nls-entity-chip nls-entity-chip--scamreport">Scam Reports</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var input = document.getElementById("nls-input");
+    document.querySelectorAll(".nls-chip[data-example]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            if (input) {
+                input.value = btn.getAttribute("data-example");
+                input.closest("form").submit();
+            }
+        });
+    });
+})();
+</script>
+}
