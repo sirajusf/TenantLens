@@ -58,6 +58,7 @@
                     <a asp-area="" asp-controller="Properties" asp-action="Index" class="@(currentController == "Properties" ? "active" : null)">Properties</a>
                     <a asp-area="" asp-controller="Reviews" asp-action="Index" class="@(currentController == "Reviews" ? "active" : null)">Reviews</a>
                     <a asp-area="" asp-controller="ScamReports" asp-action="Index" class="@(currentController == "ScamReports" ? "active" : null)">Scam Reports</a>
+                    <a asp-area="" asp-controller="Home" asp-action="About" class="@(currentController == "Home" && currentAction == "About" ? "active" : null)">About</a>
                     @if (User.Identity?.IsAuthenticated ?? false)
                     {
                         <a asp-area="" asp-controller="LeaseSummarizer" asp-action="Index" class="@(currentController == "LeaseSummarizer" ? "active" : null)">Lease Summarizer</a>
