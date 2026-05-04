@@ -14,7 +14,7 @@ namespace LeaseLense.Web.Services;
 public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly string SystemPrompt = LoadPromptFile("nl_search_system_prompt.txt");
+    private static readonly string SystemPromptTemplate = LoadPromptFile("nl_search_system_prompt.txt");
 
     private readonly HttpClient _httpClient;
     private readonly AzureDocumentIntelligenceOptions _options;
@@ -92,16 +92,29 @@ public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
             : new Uri("https://invalid.local/");
     }
 
+    private static string BuildSystemPrompt()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return SystemPromptTemplate
+            .Replace("{{TODAY}}", today.ToString("yyyy-MM-dd"))
+            .Replace("{{3_MONTHS_AGO}}", today.AddMonths(-3).ToString("yyyy-MM-dd"))
+            .Replace("{{6_MONTHS_AGO}}", today.AddMonths(-6).ToString("yyyy-MM-dd"))
+            .Replace("{{12_MONTHS_AGO}}", today.AddMonths(-12).ToString("yyyy-MM-dd"));
+    }
+
     private static string BuildRequestBody(string model, string userQuery, bool useResponsesApi)
     {
+        var systemPrompt = BuildSystemPrompt();
+
         if (useResponsesApi)
         {
             var payload = new
             {
                 model,
+                max_output_tokens = 1200,
                 input = new object[]
                 {
-                    new { role = "system", content = new[] { new { type = "input_text", text = SystemPrompt } } },
+                    new { role = "system", content = new[] { new { type = "input_text", text = systemPrompt } } },
                     new { role = "user",   content = new[] { new { type = "input_text", text = userQuery } } }
                 }
             };
@@ -110,9 +123,11 @@ public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
 
         var chatPayload = new
         {
+            model,
+            max_tokens = 1200,
             messages = new object[]
             {
-                new { role = "system", content = SystemPrompt },
+                new { role = "system", content = systemPrompt },
                 new { role = "user",   content = userQuery }
             }
         };
@@ -146,42 +161,31 @@ public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
             using var resultDoc = JsonDocument.Parse(json);
             var r = resultDoc.RootElement;
 
-            var entityType = ParseEntityType(r);
-            var queryText = GetString(r, "queryText") ?? originalQuery;
-            var city = GetString(r, "city");
-            var propertyType = GetString(r, "propertyType");
-            var landlordName = GetString(r, "landlordName");
-            var minRent = GetDecimal(r, "minRent");
-            var maxRent = GetDecimal(r, "maxRent");
-            var minRating = GetDecimal(r, "minRating");
-            var verifiedOnly = GetBool(r, "verifiedOnly");
-            var hasVerifiedReviews = GetBool(r, "hasVerifiedReviews");
-            var scamType = GetString(r, "scamType");
-            var minSeverity = GetDecimal(r, "minSeverity");
-            var sortBy = GetString(r, "sortBy");
             var interpretedFilters = ParseStringArray(r, "interpretedFilters");
+            var targetEntities = ParseTargetEntityTypes(r);
+            var queriesByEntity = ParseQueriesByEntity(r, targetEntities, originalQuery);
 
-            var query = new SearchQueryDto
+            if (queriesByEntity.Count == 0)
             {
-                EntityType = entityType,
-                QueryText = queryText,
-                City = city,
-                PropertyType = propertyType,
-                LandlordName = landlordName,
-                MinRent = minRent,
-                MaxRent = maxRent,
-                MinRating = minRating,
-                VerifiedOnly = verifiedOnly,
-                HasVerifiedReviews = hasVerifiedReviews,
-                ScamType = scamType,
-                MinSeverity = minSeverity,
-                SortBy = sortBy,
-                Limit = 40
-            };
+                var legacyEntity = ParseEntityType(r);
+                var legacyQuery = ParseLegacySingleQuery(r, legacyEntity, originalQuery);
+                queriesByEntity[legacyEntity] = legacyQuery;
+                if (!targetEntities.Contains(legacyEntity))
+                {
+                    targetEntities.Add(legacyEntity);
+                }
+            }
+
+            var firstEntity = targetEntities.FirstOrDefault();
+            var firstQuery = firstEntity != default && queriesByEntity.TryGetValue(firstEntity, out var first)
+                ? first
+                : queriesByEntity.Values.First();
 
             return new NlQueryParseResult
             {
-                Query = query,
+                Query = firstQuery,
+                TargetEntityTypes = targetEntities,
+                QueriesByEntity = queriesByEntity,
                 InterpretedFilters = interpretedFilters
             };
         }
@@ -200,6 +204,114 @@ public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
             "review" or "reviews" => SearchEntityType.Review,
             "scamreport" or "scam" or "scamreports" or "fraud" => SearchEntityType.ScamReport,
             _ => SearchEntityType.Property
+        };
+    }
+
+    private static List<SearchEntityType> ParseTargetEntityTypes(JsonElement root)
+    {
+        var result = new List<SearchEntityType>();
+        if (!root.TryGetProperty("targetEntityTypes", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return result;
+
+        foreach (var item in arr.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+                continue;
+
+            var parsed = ParseEntityType(item.GetString());
+            if (parsed is not null && !result.Contains(parsed.Value))
+            {
+                result.Add(parsed.Value);
+            }
+        }
+
+        return result;
+    }
+
+    private static Dictionary<SearchEntityType, SearchQueryDto> ParseQueriesByEntity(
+        JsonElement root,
+        IReadOnlyList<SearchEntityType> targetEntityTypes,
+        string originalQuery)
+    {
+        var result = new Dictionary<SearchEntityType, SearchQueryDto>();
+        if (!root.TryGetProperty("queriesByEntity", out var qbe) || qbe.ValueKind != JsonValueKind.Object)
+            return result;
+
+        foreach (var entityType in targetEntityTypes)
+        {
+            var key = entityType.ToString();
+            if (!qbe.TryGetProperty(key, out var entityNode) || entityNode.ValueKind != JsonValueKind.Object)
+                continue;
+
+            result[entityType] = ParseEntityQuery(entityNode, entityType, originalQuery);
+        }
+
+        // Safety: parse any present known entity objects even if targetEntityTypes was missing/incomplete.
+        foreach (var property in qbe.EnumerateObject())
+        {
+            var parsed = ParseEntityType(property.Name);
+            if (parsed is null || result.ContainsKey(parsed.Value) || property.Value.ValueKind != JsonValueKind.Object)
+                continue;
+
+            result[parsed.Value] = ParseEntityQuery(property.Value, parsed.Value, originalQuery);
+        }
+
+        return result;
+    }
+
+    private static SearchQueryDto ParseLegacySingleQuery(JsonElement r, SearchEntityType entityType, string originalQuery)
+    {
+        // Respect an explicit null from the LLM — only fall back to originalQuery if the field is absent entirely.
+        var queryText = r.TryGetProperty("queryText", out _) ? GetString(r, "queryText") : originalQuery;
+        return new SearchQueryDto
+        {
+            EntityType = entityType,
+            QueryText = queryText,
+            City = GetString(r, "city"),
+            PropertyType = GetString(r, "propertyType"),
+            LandlordName = GetString(r, "landlordName"),
+            MinRent = GetDecimal(r, "minRent"),
+            MaxRent = GetDecimal(r, "maxRent"),
+            MinRating = ClampZeroToFive(GetDecimal(r, "minRating")),
+            MinCommunicationRating = ClampZeroToFive(GetDecimal(r, "minCommunicationRating")),
+            MinMaintenanceRating = ClampZeroToFive(GetDecimal(r, "minMaintenanceRating")),
+            VerifiedOnly = GetBool(r, "verifiedOnly"),
+            HasVerifiedReviews = GetBool(r, "hasVerifiedReviews"),
+            IssueTypes = ParseStringArrayOrNull(r, "issueTypes"),
+            ScamType = GetString(r, "scamType"),
+            MinSeverity = ClampZeroToFive(GetDecimal(r, "minSeverity")),
+            MaxSeverity = ClampZeroToFive(GetDecimal(r, "maxSeverity")),
+            DateReportedAfter = GetDateOnly(r, "dateReportedAfter"),
+            SortBy = GetString(r, "sortBy"),
+            Limit = 40
+        };
+    }
+
+    private static SearchQueryDto ParseEntityQuery(JsonElement node, SearchEntityType entityType, string originalQuery)
+    {
+        // Respect an explicit null from the LLM — only fall back to originalQuery if the field is absent entirely.
+        var queryText = node.TryGetProperty("queryText", out _) ? GetString(node, "queryText") : originalQuery;
+        return new SearchQueryDto
+        {
+            EntityType = entityType,
+            QueryText = queryText,
+            City = GetString(node, "city"),
+            PropertyType = GetString(node, "propertyType"),
+            LandlordName = GetString(node, "landlordName"),
+            MinRent = GetDecimal(node, "minRent"),
+            MaxRent = GetDecimal(node, "maxRent"),
+            MinRating = ClampZeroToFive(GetDecimal(node, "minRating")),
+            MinCommunicationRating = ClampZeroToFive(GetDecimal(node, "minCommunicationRating")),
+            MinMaintenanceRating = ClampZeroToFive(GetDecimal(node, "minMaintenanceRating")),
+            VerifiedOnly = GetBool(node, "verifiedOnly"),
+            HasVerifiedReviews = GetBool(node, "hasVerifiedReviews"),
+            IssueTypes = ParseStringArrayOrNull(node, "issueTypes"),
+            ScamType = GetString(node, "scamType"),
+            MinSeverity = ClampZeroToFive(GetDecimal(node, "minSeverity")),
+            MaxSeverity = ClampZeroToFive(GetDecimal(node, "maxSeverity")),
+            DateReportedAfter = GetDateOnly(node, "dateReportedAfter"),
+            SortBy = GetString(node, "sortBy"),
+            Limit = 40
         };
     }
 
@@ -244,6 +356,46 @@ public sealed class AzureFoundryNlQueryParserClient : INlQueryParserLlmClient
             }
         }
         return result;
+    }
+
+    private static IReadOnlyList<string>? ParseStringArrayOrNull(JsonElement el, string prop)
+    {
+        var values = ParseStringArray(el, prop);
+        return values.Count == 0 ? null : values;
+    }
+
+    private static DateOnly? GetDateOnly(JsonElement el, string prop)
+    {
+        if (!el.TryGetProperty(prop, out var v) || v.ValueKind != JsonValueKind.String)
+            return null;
+
+        var raw = v.GetString();
+        return DateOnly.TryParse(raw, out var date) ? date : null;
+    }
+
+    private static decimal? ClampZeroToFive(decimal? value)
+    {
+        if (!value.HasValue)
+            return null;
+        if (value.Value < 0m)
+            return 0m;
+        if (value.Value > 5m)
+            return 5m;
+        return value;
+    }
+
+    private static SearchEntityType? ParseEntityType(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "property" or "properties" => SearchEntityType.Property,
+            "review" or "reviews" => SearchEntityType.Review,
+            "scamreport" or "scamreports" or "scam" or "fraud" => SearchEntityType.ScamReport,
+            _ => null
+        };
     }
 
     private static string? TryExtractResponsesOutputText(JsonElement root)
