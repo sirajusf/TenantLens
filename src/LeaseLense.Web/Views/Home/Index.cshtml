@@ -44,17 +44,17 @@
                 <span class="tab">Lease Risk</span>
                 <span class="tab">Renter Fit</span>
               </div>
-              <form class="search-bar" role="search" method="get" asp-controller="Properties" asp-action="Index">
+              <form class="search-bar" role="search" method="get" asp-controller="Search" asp-action="Index">
               <label class="sr-only" for="property-search"
-                >Search properties by community, name, or address</label
+                >Search properties, reviews, and scam reports</label
               >
               <input
                 id="property-search"
                 type="search"
                 name="q"
-                placeholder="Search by community, name, or address..."
+                placeholder="Search by city, address, landlord, rent, or scam type..."
               />
-              <button type="submit">Search Properties</button>
+              <button type="submit">Search</button>
               </form>
               <div class="quick-chips">
                 <span>Community</span>

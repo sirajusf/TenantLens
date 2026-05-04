@@ -8,7 +8,7 @@ public enum LlmFoundryFileLogSeverity
 
 public interface ILlmFoundryErrorFileLog
 {
-    /// <summary>Best-effort only; implementations must not throw to callers.</summary>
+    
     void Write(
         LlmFoundryFileLogSeverity severity,
         string eventType,

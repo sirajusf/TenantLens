@@ -37,6 +37,7 @@ builder.Services.AddScoped<IEmailVerificationSender, GmailEmailVerificationSende
 builder.Services.AddHttpClient<IAddressExtractionLlmClient, AzureFoundryAddressExtractionLlmClient>();
 builder.Services.AddHttpClient<ILeaseSummarizationLlmClient, AzureFoundryLeaseSummarizationLlmClient>();
 builder.Services.AddHttpClient<INlQueryParserLlmClient, AzureFoundryNlQueryParserClient>();
+builder.Services.AddScoped<SmartSearchOrchestrator>();
 builder.Services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
 builder.Services.AddSingleton<IResidencyFallbackQueue, ResidencyFallbackQueue>();
 builder.Services.AddHostedService<ResidencyFallbackWorker>();

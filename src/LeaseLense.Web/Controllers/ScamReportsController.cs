@@ -1,6 +1,8 @@
 using LeaseLense.Application.Abstractions;
+using LeaseLense.Application.Search;
 using LeaseLense.Application.ScamReports;
 using LeaseLense.Web.Models.ScamReports;
+using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +11,14 @@ namespace LeaseLense.Web.Controllers;
 public sealed class ScamReportsController : Controller
 {
     private readonly IScamReportMvpService _scamReportMvpService;
+    private readonly SmartSearchOrchestrator _smartSearch;
 
-    public ScamReportsController(IScamReportMvpService scamReportMvpService)
+    public ScamReportsController(
+        IScamReportMvpService scamReportMvpService,
+        SmartSearchOrchestrator smartSearch)
     {
         _scamReportMvpService = scamReportMvpService;
+        _smartSearch = smartSearch;
     }
 
     [HttpGet]
@@ -26,6 +32,28 @@ public sealed class ScamReportsController : Controller
         string? sortBy,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<string> interpretedFilters = [];
+        bool llmUnavailable = false;
+        bool nlFallback = false;
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var smart = await _smartSearch.SearchAsync(q, SearchEntityType.ScamReport, 120, cancellationToken);
+            var effective = smart.EffectiveQuery;
+
+            q = effective.QueryText ?? q;
+            city ??= effective.City;
+            minSeverity ??= effective.MinSeverity;
+            scamType ??= effective.ScamType;
+            maxSeverity ??= effective.MaxSeverity;
+            dateReportedAfter ??= effective.DateReportedAfter;
+            sortBy ??= effective.SortBy;
+
+            interpretedFilters = smart.InterpretedFilters;
+            llmUnavailable = smart.LlmUnavailable;
+            nlFallback = smart.NlFallback;
+        }
+
         var reports = await _scamReportMvpService.GetScamReportsAsync(
             q, city, minSeverity, scamType, maxSeverity, dateReportedAfter, sortBy, cancellationToken);
 
@@ -38,6 +66,9 @@ public sealed class ScamReportsController : Controller
             MaxSeverity = maxSeverity,
             DateReportedAfter = dateReportedAfter,
             SortBy = sortBy,
+            InterpretedFilters = interpretedFilters,
+            LlmUnavailable = llmUnavailable,
+            NlFallback = nlFallback,
             Reports = reports.Select(x => new ScamReportListItemViewModel
             {
                 PropertyId = x.PropertyId,

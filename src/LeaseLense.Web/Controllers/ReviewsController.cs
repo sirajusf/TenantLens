@@ -1,6 +1,8 @@
 using LeaseLense.Application.Abstractions;
 using LeaseLense.Application.Reviews;
+using LeaseLense.Application.Search;
 using LeaseLense.Web.Models.Reviews;
+using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -10,11 +12,16 @@ namespace LeaseLense.Web.Controllers;
 public sealed class ReviewsController : Controller
 {
     private readonly IReviewMvpService _reviewMvpService;
+    private readonly SmartSearchOrchestrator _smartSearch;
     private readonly ILogger<ReviewsController> _logger;
 
-    public ReviewsController(IReviewMvpService reviewMvpService, ILogger<ReviewsController> logger)
+    public ReviewsController(
+        IReviewMvpService reviewMvpService,
+        SmartSearchOrchestrator smartSearch,
+        ILogger<ReviewsController> logger)
     {
         _reviewMvpService = reviewMvpService;
+        _smartSearch = smartSearch;
         _logger = logger;
     }
 
@@ -32,6 +39,34 @@ public sealed class ReviewsController : Controller
         string? sortBy,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<string> interpretedFilters = [];
+        bool llmUnavailable = false;
+        bool nlFallback = false;
+
+        if (!string.IsNullOrWhiteSpace(propertyQuery))
+        {
+            var smart = await _smartSearch.SearchAsync(propertyQuery, SearchEntityType.Review, 120, cancellationToken);
+            var effective = smart.EffectiveQuery;
+
+            propertyQuery = effective.QueryText ?? propertyQuery;
+            city ??= effective.City;
+            minRent ??= effective.MinRent;
+            maxRent ??= effective.MaxRent;
+            minRating ??= effective.MinRating;
+            minCommunicationRating ??= effective.MinCommunicationRating;
+            minMaintenanceRating ??= effective.MinMaintenanceRating;
+            verifiedOnly = verifiedOnly || effective.VerifiedOnly;
+            if ((issueTypes is null || issueTypes.Count == 0) && effective.IssueTypes is { Count: > 0 })
+            {
+                issueTypes = effective.IssueTypes.ToList();
+            }
+            sortBy ??= effective.SortBy;
+
+            interpretedFilters = smart.InterpretedFilters;
+            llmUnavailable = smart.LlmUnavailable;
+            nlFallback = smart.NlFallback;
+        }
+
         var query = new ReviewQueryDto
         {
             PropertyQuery = propertyQuery,
@@ -68,6 +103,9 @@ public sealed class ReviewsController : Controller
                 VerifiedOnly = verifiedOnly,
                 IssueTypes = issueTypes,
                 SortBy = sortKey,
+                InterpretedFilters = interpretedFilters,
+                LlmUnavailable = llmUnavailable,
+                NlFallback = nlFallback,
                 HasLoadError = true,
                 LoadErrorMessage = "We couldn't load reviews right now. Please try again in a moment.",
                 Reviews = []
@@ -88,6 +126,9 @@ public sealed class ReviewsController : Controller
             VerifiedOnly = verifiedOnly,
             IssueTypes = issueTypes,
             SortBy = sortKey,
+            InterpretedFilters = interpretedFilters,
+            LlmUnavailable = llmUnavailable,
+            NlFallback = nlFallback,
             Summary = new ReviewSummaryViewModel
             {
                 TotalMatching = s.TotalMatching,

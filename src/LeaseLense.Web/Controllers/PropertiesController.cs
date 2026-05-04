@@ -1,6 +1,8 @@
 using LeaseLense.Application.Abstractions;
 using LeaseLense.Application.Properties;
+using LeaseLense.Application.Search;
 using LeaseLense.Web.Models.Properties;
+using LeaseLense.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LeaseLense.Web.Controllers;
@@ -8,10 +10,14 @@ namespace LeaseLense.Web.Controllers;
 public sealed class PropertiesController : Controller
 {
     private readonly IPropertyDirectoryService _propertyDirectoryService;
+    private readonly SmartSearchOrchestrator _smartSearch;
 
-    public PropertiesController(IPropertyDirectoryService propertyDirectoryService)
+    public PropertiesController(
+        IPropertyDirectoryService propertyDirectoryService,
+        SmartSearchOrchestrator smartSearch)
     {
         _propertyDirectoryService = propertyDirectoryService;
+        _smartSearch = smartSearch;
     }
 
     [HttpGet]
@@ -25,6 +31,28 @@ public sealed class PropertiesController : Controller
         string? sortBy,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<string> interpretedFilters = [];
+        bool llmUnavailable = false;
+        bool nlFallback = false;
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var smart = await _smartSearch.SearchAsync(q, SearchEntityType.Property, 120, cancellationToken);
+            var effective = smart.EffectiveQuery;
+
+            q = effective.QueryText ?? q;
+            city ??= effective.City;
+            propertyType ??= effective.PropertyType;
+            landlordName ??= effective.LandlordName;
+            minRating ??= effective.MinRating;
+            hasVerifiedReviews = hasVerifiedReviews || effective.HasVerifiedReviews;
+            sortBy ??= effective.SortBy;
+
+            interpretedFilters = smart.InterpretedFilters;
+            llmUnavailable = smart.LlmUnavailable;
+            nlFallback = smart.NlFallback;
+        }
+
         var result = await _propertyDirectoryService.SearchAsync(
             new PropertyDirectoryQueryDto
             {
@@ -48,6 +76,9 @@ public sealed class PropertiesController : Controller
             MinRating = minRating,
             HasVerifiedReviews = hasVerifiedReviews,
             SortBy = sortBy,
+            InterpretedFilters = interpretedFilters,
+            LlmUnavailable = llmUnavailable,
+            NlFallback = nlFallback,
             Properties = result.Items.Select(x => new PropertyDirectoryItemViewModel
             {
                 PropertyId = x.PropertyId,

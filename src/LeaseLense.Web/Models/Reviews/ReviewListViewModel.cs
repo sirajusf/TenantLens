@@ -12,6 +12,9 @@ public sealed class ReviewListViewModel
     public bool VerifiedOnly { get; init; }
     public List<string>? IssueTypes { get; init; }
     public string SortBy { get; init; } = "newest";
+    public IReadOnlyList<string> InterpretedFilters { get; init; } = [];
+    public bool LlmUnavailable { get; init; }
+    public bool NlFallback { get; init; }
     public ReviewSummaryViewModel? Summary { get; init; }
     public bool HasLoadError { get; init; }
     public string? LoadErrorMessage { get; init; }

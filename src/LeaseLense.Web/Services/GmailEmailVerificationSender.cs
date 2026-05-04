@@ -34,7 +34,7 @@ public sealed class GmailEmailVerificationSender : IEmailVerificationSender
         using var message = new MailMessage();
         message.From = new MailAddress(_options.SenderEmail, _options.SenderDisplayName);
         message.To.Add(new MailAddress(toEmail));
-        message.Subject = "Verify your LeaseLense email";
+        message.Subject = "Verify your TenantLens email";
         message.SubjectEncoding = Encoding.UTF8;
         message.BodyEncoding = Encoding.UTF8;
 
@@ -73,7 +73,7 @@ public sealed class GmailEmailVerificationSender : IEmailVerificationSender
         message.From = new MailAddress(_options.SenderEmail, _options.SenderDisplayName);
         message.To.Add(new MailAddress(toEmail));
         var displayStatus = ResidencyDecisionEmailFormatter.ToDisplayStatus(context.Status);
-        message.Subject = $"LeaseLense residency verification — {displayStatus}";
+        message.Subject = $"TenantLens residency verification — {displayStatus}";
         message.SubjectEncoding = Encoding.UTF8;
         message.BodyEncoding = Encoding.UTF8;
 

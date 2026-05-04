@@ -10,16 +10,22 @@ public sealed class NlSearchViewModel
     /// <summary>True when the user submitted a query and results were obtained.</summary>
     public bool HasSearched { get; init; }
 
-    /// <summary>Entity type the NLP layer determined this query targets.</summary>
-    public SearchEntityType EntityType { get; init; } = SearchEntityType.Property;
+    /// <summary>Entity types the NLP layer selected for the current query.</summary>
+    public IReadOnlyList<SearchEntityType> TargetEntityTypes { get; init; } = [];
 
     /// <summary>Human-readable descriptions of each filter extracted by the NLP layer.</summary>
     public IReadOnlyList<string> InterpretedFilters { get; init; } = [];
 
-    /// <summary>True when the LLM was unavailable and results are plain-text fallback only.</summary>
+    /// <summary>True when the LLM was unavailable and results are plain-text keyword fallback only.</summary>
     public bool LlmUnavailable { get; init; }
 
-    // ── Typed result lists (only one is populated per search) ────────────────
+    /// <summary>
+    /// True when the keyword search returned 0 results and the NL parser was invoked as a
+    /// second-chance fallback — the displayed results come from AI-interpreted filters.
+    /// </summary>
+    public bool NlFallback { get; init; }
+
+    // ── Typed result lists (one, two, or all can be populated) ───────────────
 
     public IReadOnlyList<PropertyMatch> PropertyResults { get; init; } = [];
     public IReadOnlyList<ReviewMatch> ReviewResults { get; init; } = [];

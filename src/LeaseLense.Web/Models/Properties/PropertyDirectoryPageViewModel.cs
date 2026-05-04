@@ -9,5 +9,8 @@ public sealed class PropertyDirectoryPageViewModel
     public decimal? MinRating { get; init; }
     public bool HasVerifiedReviews { get; init; }
     public string? SortBy { get; init; }
+    public IReadOnlyList<string> InterpretedFilters { get; init; } = [];
+    public bool LlmUnavailable { get; init; }
+    public bool NlFallback { get; init; }
     public IReadOnlyList<PropertyDirectoryItemViewModel> Properties { get; init; } = [];
 }
