@@ -66,9 +66,6 @@ public sealed class ScamReportsController : Controller
             MaxSeverity = maxSeverity,
             DateReportedAfter = dateReportedAfter,
             SortBy = sortBy,
-            InterpretedFilters = interpretedFilters,
-            LlmUnavailable = llmUnavailable,
-            NlFallback = nlFallback,
             Reports = reports.Select(x => new ScamReportListItemViewModel
             {
                 PropertyId = x.PropertyId,

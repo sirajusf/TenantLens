@@ -46,6 +46,8 @@ LeaseLense is a **rental property transparency platform** built for renters. The
 
 **The core value proposition:** Every piece of data on LeaseLense comes from real renters. Verified Stay badges give other users a signal that a review was posted by someone who actually lived at the property, not a troll or a landlord's friend. The Lease Summarizer adds a pre-signing AI layer: before a renter commits, they can get a structured breakdown of any lease in seconds.
 
+**The core value proposition:** Every piece of data on LeaseLense comes from real renters. Verified Stay badges give other users a signal that a review was posted by someone who actually lived at the property, not a troll or a landlord's friend.
+
 ---
 
 ## 2. Technology Stack
@@ -227,9 +229,9 @@ Everything that talks to SQL Server.
 
 HTTP request handling, views, and web-specific services.
 
-**Controllers:** `AccountController`, `HomeController`, `PropertiesController`, `ReviewsController`, `ScamReportsController`, `ProfileController`, `LeaseSummarizerController`
+**Controllers:** `AccountController`, `HomeController`, `PropertiesController`, `ReviewsController`, `ScamReportsController`, `ProfileController`
 
-**Web services:** `GmailEmailVerificationSender`, `AzureDocumentIntelligenceExtractionService`, `AzureFoundryAddressExtractionLlmClient`, `ResidencyFallbackWorker`, `KeyVaultSecretLoader`, `AzureFoundryLeaseSummarizationLlmClient`, `LeaseSummarizationQueue`, `LeaseSummarizationWorker`
+**Web services:** `GmailEmailVerificationSender`, `AzureDocumentIntelligenceExtractionService`, `AzureFoundryAddressExtractionLlmClient`, `ResidencyFallbackWorker`, `KeyVaultSecretLoader`
 
 ---
 
@@ -322,46 +324,6 @@ erDiagram
         decimal ParserConfidence
     }
 
-    LeaseDocument {
-        guid LeaseDocumentId PK
-        guid RenterId FK
-        guid PropertyId FK
-        string DocumentType
-        string FileHashSha256
-        string RawText
-        datetime UploadedAt
-    }
-    LeaseSummarizationJob {
-        guid LeaseSummarizationJobId PK
-        guid LeaseDocumentId FK
-        guid RenterId FK
-        string Status
-        guid LeaseAnalysisId FK
-        datetime CreatedAt
-        datetime CompletedAt
-        string ErrorMessage
-    }
-    LeaseAnalysis {
-        guid LeaseAnalysisId PK
-        guid LeaseDocumentId FK
-        guid RenterId FK
-        guid PropertyId FK
-        string SummaryText
-        string StructuredSummaryJson
-        decimal SummaryRiskScore
-        string RiskLevel
-        string ModelVersion
-    }
-    LeaseClauseFlag {
-        guid LeaseClauseFlagId PK
-        guid LeaseAnalysisId FK
-        string ClauseType
-        string RiskLevel
-        string FlaggedText
-        string Explanation
-        string SuggestedQuestion
-    }
-
     Community ||--o{ Property : "groups"
     Renter ||--o{ Property : "creates"
     Property ||--o{ Review : "has"
@@ -373,11 +335,6 @@ erDiagram
     Renter ||--o{ RenterPropertyVerification : "has"
     Property ||--o{ RenterPropertyVerification : "verified at"
     RenterPropertyVerification ||--o{ ResidencyVerificationDocument : "supported by"
-    Renter ||--o{ LeaseDocument : "uploads"
-    Property ||--o{ LeaseDocument : "associated with"
-    LeaseDocument ||--o{ LeaseSummarizationJob : "triggers"
-    LeaseDocument ||--o| LeaseAnalysis : "produces"
-    LeaseAnalysis ||--o{ LeaseClauseFlag : "contains"
 ```
 
 ---
@@ -934,169 +891,6 @@ flowchart TD
 
 ---
 
-### 6.11 Lease Summarizer
-
-The Lease Summarizer lets an authenticated renter upload a lease PDF (or image) and receive an AI-generated breakdown in seconds. It uses the same Azure AI Foundry LLM already integrated for residency verification, but with a dedicated system prompt and a much richer structured output schema.
-
-#### Architecture Overview
-
-```mermaid
-flowchart TD
-    A["User uploads lease\n(PDF / PNG / JPEG, max 10 MB)\nGET /LeaseSummarizer"] --> B["LeaseSummarizerController\nPOST /LeaseSummarizer/Submit"]
-
-    B --> C["Validate file:\n• Extension = .pdf / .png / .jpg / .jpeg\n• Size ≤ 10 MB\n• Content-Type check"]
-    C --> D["SHA-256 hash file bytes"]
-    D --> E["Create LeaseDocument record\n+ LeaseSummarizationJob (status=queued)\nSave to DB"]
-    E --> F["Enqueue LeaseSummarizationJobRequest\nto ILeaseSummarizationQueue\n(in-memory Channel)"]
-    F --> G["Redirect → /LeaseSummarizer/Status/{jobId}\n(polling page)"]
-
-    subgraph Background["Background Thread — LeaseSummarizationWorker"]
-        H["DequeueAsync()\ngets job request"]
-        I["IDocumentExtractionService\nAzure Document Intelligence\nRun 'prebuilt-layout' OCR → raw text"]
-        J["ILeaseSummarizationLlmClient\nAzureFoundryLeaseSummarizationLlmClient\nPOST to Azure AI Foundry with system prompt"]
-        K["Parse structured JSON response:\nconfidence, premises, parties, term,\nmoney, notices, moveOut, highlights, clauseFlags"]
-        L["Create LeaseAnalysis record\n+ LeaseClauseFlag records\nUpdate job status=succeeded"]
-        M["On error: update job status=failed\nLog to ILlmFoundryErrorFileLog"]
-    end
-
-    F --> H
-    H --> I
-    I --> J
-    J --> K
-    K --> L
-```
-
-#### Real-Time Status Polling
-
-The Status page polls `/LeaseSummarizer/StatusJson?id={jobId}` every 2 seconds. The API endpoint returns JSON with the current job status and, when complete, the full structured summary and clause flags. The JavaScript on the page renders the response into formatted HTML sections without a full page reload.
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Browser
-    participant Ctrl as LeaseSummarizerController
-    participant Repo as ILeaseLensRepository
-
-    User->>Browser: GET /LeaseSummarizer/Status/{jobId}
-    Browser->>Browser: Render "Queued…" placeholder
-
-    loop Every 2 seconds until succeeded or failed
-        Browser->>Ctrl: GET /LeaseSummarizer/StatusJson?id={jobId}
-        Ctrl->>Repo: Load LeaseSummarizationJob
-        Ctrl->>Repo: Load LeaseAnalysis + ClauseFlags (if complete)
-        Ctrl-->>Browser: JSON { status, summaryText, structuredSummaryJson, clauseFlags }
-        Browser->>Browser: Update status label + render summary sections
-    end
-
-    alt status = succeeded
-        Browser->>Browser: Render full structured summary\n(property, parties, term, financials,\nutilities, notices, move-out, clause flags)
-    else status = failed
-        Browser->>Browser: Show error message
-    end
-```
-
-#### What the LLM Returns
-
-The system prompt instructs the LLM to output a strict JSON schema. Key sections:
-
-| Section | What it contains |
-|---|---|
-| `confidence` | 0–1 float — how confident the model is in the extraction |
-| `premises` | Full address, street, city, state, postal code, country |
-| `parties` | Landlord name, property manager, list of tenant names |
-| `term` | Start date, end date, months, renewal type, early termination clause |
-| `money` | Monthly rent (amount, due date, grace period), security deposit, other deposits, late fees, NSF fees, recurring charges, one-time fees |
-| `utilities` | Per-utility breakdown of who pays (landlord vs tenant) |
-| `notices` | Move-out notice days, termination notice days, entry notice hours, rent increase notice days |
-| `moveOut` | Cleaning requirements, repair deduction policy, required professional services |
-| `highlights` | Key facts the renter should know |
-| `clauseFlags` | Array of risky clauses, each with: `clauseType`, `riskLevel` (high / medium / low), `flaggedText`, `explanation`, `suggestedQuestion` |
-
-#### Security for File Uploads
-
-The same security pipeline applies here as for residency verification:
-- File size and content-type validation before processing
-- File bytes held in memory only (never written to disk or file system)
-- SHA-256 hashing stored on `LeaseDocument` for traceability
-- `[Authorize]` — only authenticated renters can access this feature
-- Anti-forgery token on the upload form
-
-#### Background Worker Pattern
-
-`LeaseSummarizationWorker` is a .NET `BackgroundService` — it runs as a long-lived thread alongside the web app. It continuously calls `DequeueAsync()` on the `ILeaseSummarizationQueue` (backed by a `System.Threading.Channels.Channel<T>`), processes each job, and updates the database. This decouples the HTTP response from the LLM call, which can take 10–30 seconds. The user gets an instant redirect to the status page while the work happens in the background.
-
-```mermaid
-flowchart LR
-    A["HTTP Request\n(file upload)"] -->|"completes in < 1s"| B["Redirect to Status page"]
-    A --> C["Job enqueued in Channel"]
-    C --> D["LeaseSummarizationWorker\n(background thread)"]
-    D -->|"processes in 10-30s"| E["DB updated to succeeded/failed"]
-    B --> F["Polling JS\nchecks DB via StatusJson endpoint"]
-    E --> F
-```
-
----
-
-### 6.12 Robust NL Mixed Search
-
-Robust NL Mixed Search lets any user describe what they are looking for in plain English. Instead of forcing a single entity type, the parser can now select one, two, or all three entity types (Property, Review, ScamReport), extract filters for each selected type, and run grouped results in global search.
-
-#### Architecture Flow
-
-```mermaid
-flowchart TD
-    A["User types:\n'cheap apartments in Tampa\nwith verified reviews and recent scam reports'\nGET /Search?q=..."]
-    A --> B["SearchController.Index()"]
-    B --> C["SmartSearchOrchestrator.SearchAsync()"]
-    C --> D{Word count > 3?}
-
-    D -->|Yes| E["Try NL parse first"]
-    D -->|No| F["Run keyword search first"]
-
-    E --> G["AzureFoundryNlQueryParserClient\nreturns NlQueryParseResult:\n- targetEntityTypes[]\n- queriesByEntity{}\n- interpretedFilters[]"]
-    G --> H["Execute selected entities only\n(Property / Review / ScamReport)\nvia ICoreSearchService"]
-
-    F --> I{Any keyword results?}
-    I -->|Yes| J["Keep keyword result path"]
-    I -->|No| K["Second chance NL parse\nthen run selected entities"]
-
-    E -->|LLM unavailable| L["Fallback keyword path\nLlmUnavailable=true"]
-    K -->|LLM unavailable| L
-
-    H --> M["Grouped results bundle\nPropertyResults / ReviewResults / ScamReportResults"]
-    J --> M
-    L --> M
-
-    M --> N["NlSearchViewModel\nTargetEntityTypes + InterpretedFilters + grouped results"]
-    N --> O["Search/Index.cshtml renders grouped sections\nfor selected entities only"]
-```
-
-#### System Prompt Design (`nl_search_system_prompt.txt`)
-
-The prompt now enforces a multi-intent schema:
-
-| JSON field | Purpose | Notes |
-|---|---|---|
-| `targetEntityTypes` | Which entities to run | One/two/three of: Property, Review, ScamReport |
-| `queriesByEntity` | Structured filters per selected entity | Full per-entity filter object mapped to `SearchQueryDto` |
-| `interpretedFilters` | Human-readable chips for UI trust | Shared explanation of extracted constraints |
-
-`queriesByEntity` supports all major filter dimensions used in the app (city, rent range, rating, verified flags, issue tags, scam type, severity, date, sorting). This allows global search to execute only the entity searches the model selected, while still using the existing core search engine.
-
-#### Graceful Degradation
-
-`AzureFoundryNlQueryParserClient.TryParseAsync()` returns `null` in three cases: LLM disabled in config, HTTP error from Foundry, or timeout (capped at 12 seconds). Fallback behavior is orchestrated centrally:
-
-- Long query (`wordCount > 3`): NL parse first, then keyword fallback if unavailable.
-- Short query (`wordCount <= 3`): keyword first, and NL second chance only if keyword returns zero results.
-- If NL is unavailable in either path, UI shows the warning banner and keeps keyword-driven results.
-
-#### Why Not Search SQL Directly?
-
-The Smart Search **does not bypass the existing search engine** — it only adds an NLP pre-processing step. All actual data retrieval still goes through `ICoreSearchService`, which means every existing filter (city match, rent range, rating threshold, verified-only, scam type, severity) continues to work exactly as on the typed filter pages. The NLP layer is purely a query translator; swapping or disabling it does not break anything.
-
----
-
 ## 7. External Services
 
 ### Azure Key Vault — Startup Secrets Loading
@@ -1220,10 +1014,6 @@ sequenceDiagram
     Main->>DI: Register Gmail, Azure Document Intelligence, LLM client
     Main->>DI: Register ResidencyFallbackQueue (singleton)
     Main->>DI: AddHostedService<ResidencyFallbackWorker>()
-    Main->>DI: AddHttpClient<ILeaseSummarizationLlmClient, AzureFoundryLeaseSummarizationLlmClient>()
-    Main->>DI: Register LeaseSummarizationQueue (singleton Channel-backed)
-    Main->>DI: AddHostedService<LeaseSummarizationWorker>()
-    Main->>DI: AddHttpClient<INlQueryParserLlmClient, AzureFoundryNlQueryParserClient>()
     Main->>DI: AddIdentity<IdentityUser>() with password policy
 
     Main->>Main: Build middleware pipeline:<br/>HTTPS redirect → Routing → Authentication → Authorization → Static files → Controllers

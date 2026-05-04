@@ -76,9 +76,6 @@ public sealed class PropertiesController : Controller
             MinRating = minRating,
             HasVerifiedReviews = hasVerifiedReviews,
             SortBy = sortBy,
-            InterpretedFilters = interpretedFilters,
-            LlmUnavailable = llmUnavailable,
-            NlFallback = nlFallback,
             Properties = result.Items.Select(x => new PropertyDirectoryItemViewModel
             {
                 PropertyId = x.PropertyId,
