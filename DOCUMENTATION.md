@@ -23,6 +23,7 @@
    - [Reputation System](#69-reputation-system)
    - [Search](#610-search)
    - [Lease Summarizer](#611-lease-summarizer)
+   - [Smart Search (Natural Language Search)](#612-smart-search-natural-language-search)
 7. [External Services](#7-external-services)
 8. [Security](#8-security)
 9. [How the App Starts Up](#9-how-the-app-starts-up)
@@ -40,7 +41,8 @@ LeaseLense is a **rental property transparency platform** built for renters. The
 - Report scams associated with properties
 - Verify their past residency at a property by uploading a document (bank statement, utility bill, or lease) — verified reviews carry a **"Verified Stay"** badge
 - View a reputation leaderboard of the most- and least-reputable properties
-- **Upload a lease document (PDF / PNG / JPEG) and receive an AI-generated summary** — rent, fees, deposits, lease term, notice requirements, move-out rules, and a colour-coded risk assessment with flagged clauses (new feature)
+- **Upload a lease document (PDF / PNG / JPEG) and receive an AI-generated summary** — rent, fees, deposits, lease term, notice requirements, move-out rules, and a colour-coded risk assessment with flagged clauses
+- **Use Smart Search (natural language search)** — type a plain-English query like *"cheap apartments in Tampa under $1500 with verified reviews"* and the AI parses city, rent range, ratings, entity type, and sort order automatically before running the search
 
 **The core value proposition:** Every piece of data on LeaseLense comes from real renters. Verified Stay badges give other users a signal that a review was posted by someone who actually lived at the property, not a troll or a landlord's friend. The Lease Summarizer adds a pre-signing AI layer: before a renter commits, they can get a structured breakdown of any lease in seconds.
 
@@ -1035,6 +1037,65 @@ flowchart LR
 
 ---
 
+### 6.12 Smart Search (Natural Language Search)
+
+Smart Search lets any user (authenticated or not) describe what they are looking for in plain English. An LLM call translates the query into a structured `SearchQueryDto` — the same DTO already used by the enriched `CoreSearchService` — so results are identical to using the manual filter panels but require no form filling.
+
+#### Architecture Flow
+
+```mermaid
+flowchart TD
+    A["User types:\n'cheap apartments in Tampa\nunder $1500 with verified reviews'\nGET /Search?q=..."]
+    A --> B["SearchController.Index()"]
+
+    B --> C["INlQueryParserLlmClient\nAzureFoundryNlQueryParserClient\nPOST to Azure AI Foundry\nwith nl_search_system_prompt.txt"]
+
+    C --> D{LLM available?}
+
+    D -->|Yes| E["Parse JSON response → NlQueryParseResult\n• SearchQueryDto populated:\n  City=Tampa, MaxRent=1500,\n  HasVerifiedReviews=true,\n  EntityType=Property\n• InterpretedFilters list for UI chips"]
+
+    D -->|No / timeout| F["Fallback:\nplain-text keyword SearchQueryDto\nEntityType=Property only\nLlmUnavailable=true flag"]
+
+    E & F --> G["ICoreSearchService.SearchAsync(dto)\n(same enriched search engine\nused by Properties / Reviews / ScamReports pages)"]
+
+    G --> H["Return typed match list\nPropertyMatch | ReviewMatch | ScamReportMatch"]
+
+    H --> I["NlSearchViewModel built\n→ Search/Index.cshtml rendered"]
+
+    I --> J["UI shows:\n• AI-extracted filter chips\n  'City: Tampa · Max rent: $1,500 · Verified'\n• Entity type badge (Properties)\n• Result cards\n• LLM-unavailable notice if fallback"]
+```
+
+#### System Prompt Design (`nl_search_system_prompt.txt`)
+
+The prompt instructs the LLM to return a single JSON object with the following fields:
+
+| JSON field | Maps to `SearchQueryDto` | Example value |
+|---|---|---|
+| `entityType` | `EntityType` | `"Property"` / `"Review"` / `"ScamReport"` |
+| `queryText` | `QueryText` | `"apartments in Tampa"` |
+| `city` | `City` | `"Tampa"` |
+| `maxRent` | `MaxRent` | `1500` |
+| `minRent` | `MinRent` | `null` |
+| `minRating` | `MinRating` | `4.0` |
+| `verifiedOnly` | `VerifiedOnly` | `true` |
+| `hasVerifiedReviews` | `HasVerifiedReviews` | `false` |
+| `scamType` | `ScamType` | `"deposit_scam"` |
+| `minSeverity` | `MinSeverity` | `3.5` |
+| `sortBy` | `SortBy` | `"rating"` |
+| `interpretedFilters` | UI chips only | `["City: Tampa", "Max rent: $1,500"]` |
+
+The `interpretedFilters` array is returned alongside the structured data so the UI can show the user exactly what the AI understood — building trust in the result.
+
+#### Graceful Degradation
+
+`AzureFoundryNlQueryParserClient.TryParseAsync()` returns `null` in three cases: LLM disabled in config, HTTP error from Foundry, or timeout (capped at 12 seconds). `SearchController` detects `null` and constructs a plain-text-only `SearchQueryDto` with `EntityType = Property`. The view shows a yellow notice banner so the user knows AI parsing was unavailable.
+
+#### Why Not Search SQL Directly?
+
+The Smart Search **does not bypass the existing search engine** — it only adds an NLP pre-processing step. All actual data retrieval still goes through `ICoreSearchService`, which means every existing filter (city match, rent range, rating threshold, verified-only, scam type, severity) continues to work exactly as on the typed filter pages. The NLP layer is purely a query translator; swapping or disabling it does not break anything.
+
+---
+
 ## 7. External Services
 
 ### Azure Key Vault — Startup Secrets Loading
@@ -1161,6 +1222,7 @@ sequenceDiagram
     Main->>DI: AddHttpClient<ILeaseSummarizationLlmClient, AzureFoundryLeaseSummarizationLlmClient>()
     Main->>DI: Register LeaseSummarizationQueue (singleton Channel-backed)
     Main->>DI: AddHostedService<LeaseSummarizationWorker>()
+    Main->>DI: AddHttpClient<INlQueryParserLlmClient, AzureFoundryNlQueryParserClient>()
     Main->>DI: AddIdentity<IdentityUser>() with password policy
 
     Main->>Main: Build middleware pipeline:<br/>HTTPS redirect → Routing → Authentication → Authorization → Static files → Controllers
@@ -1240,6 +1302,21 @@ A: Yes — the SHA-256 hash is stored on `LeaseDocument` for traceability, but u
 **Q: How does the Lease Summarizer relate to the Residency Verification? Are they the same feature?**  
 A: They share the same Azure infrastructure (Document Intelligence for OCR, Azure AI Foundry for LLM) but serve different purposes. Residency Verification checks whether a *renter* lived at a *specific property* — it extracts name, address, and date from proof documents and scores the match. The Lease Summarizer analyzes a *lease document* to help the renter understand what they are about to sign — it extracts contract terms, financial obligations, and risk clauses. The verification path is synchronous (or near-synchronous via `ResidencyFallbackWorker`); the lease path is always async via `LeaseSummarizationWorker`.
 
+**Q: How does Smart Search work technically?**  
+A: The user's plain-English query is sent to `AzureFoundryNlQueryParserClient`, which calls the same Azure AI Foundry endpoint used by the Lease Summarizer and address extraction. A compact system prompt (`nl_search_system_prompt.txt`) instructs the LLM to return a strict JSON object containing `entityType`, `city`, `maxRent`, `minRating`, `verifiedOnly`, `scamType`, `sortBy`, and an `interpretedFilters` array of human-readable chip labels. The controller maps the JSON into a `SearchQueryDto` and passes it directly to `ICoreSearchService.SearchAsync()` — the same method all other search paths use. No new database queries were written for Smart Search.
+
+**Q: What happens if the LLM misinterprets the query?**  
+A: The user sees the "AI extracted:" chip bar showing exactly what was parsed — e.g. "City: Tampa", "Max rent: $1,500". If the extraction is wrong, they can simply type a new query or fall back to the manual filter panels on the Properties, Reviews, or Scam Reports pages. There is no hard dependency on LLM accuracy; the fallback is always available.
+
+**Q: Why is Smart Search available to unauthenticated users when other AI features require login?**  
+A: The Lease Summarizer stores data (LeaseDocument, LeaseSummarizationJob, LeaseAnalysis) tied to a renter account, so authentication is required. Smart Search is stateless — nothing is stored, no account data is read, and the only operation is reading existing public-facing data (properties, reviews, scam reports). Requiring login would add friction with no security benefit.
+
+**Q: Does Smart Search hit the database differently from the typed filter pages?**  
+A: No. Both paths call `ICoreSearchService`, which loads all data from `ILeaseLensRepository` and filters it in memory. Smart Search adds one extra step before that — the LLM call to parse the query — but the data retrieval path is identical. This is intentional: the NLP layer is purely a query translator, not a new data access path.
+
+**Q: How is the Smart Search system prompt kept accurate?**  
+A: The prompt is a plain text file (`Prompts/nl_search_system_prompt.txt`) loaded at startup. It defines explicit extraction rules: "cheap" maps to `maxRent: 1500`, "highly rated" maps to `minRating: 4.0`, "scam" or "fraud" in the query maps `entityType` to `ScamReport`. The `interpretedFilters` array returned by the LLM gives the team a way to audit what the model extracted without reading the raw JSON — it is shown directly to the user as filter chips.
+
 ---
 
-*Documentation generated May 2026. Reflects the current state of the LeaseLense codebase including the Lease Summarizer feature.*
+*Documentation generated May 2026. Reflects the current state of the LeaseLense codebase including the Lease Summarizer and Smart Search (Natural Language Search) features.*
