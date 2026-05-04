@@ -73,28 +73,6 @@
         </fieldset>
     </form>
 
-    @if (Model.LlmUnavailable)
-    {
-        <div class="mvp-notice mvp-notice--warn" role="alert">
-            <span>AI parsing is temporarily unavailable — showing keyword results instead.</span>
-        </div>
-    }
-    @if (Model.NlFallback)
-    {
-        <div class="mvp-notice mvp-notice--info" role="status">
-            <span>No direct matches — AI found related scam report results from your query.</span>
-        </div>
-    }
-    @if (Model.InterpretedFilters.Any())
-    {
-        <div class="mvp-tags" aria-label="Interpreted search filters">
-            @foreach (var filter in Model.InterpretedFilters)
-            {
-                <span class="mvp-badge">@filter</span>
-            }
-        </div>
-    }
-
     @if (!Model.Reports.Any())
     {
         <div class="reviews-state reviews-state--empty">
