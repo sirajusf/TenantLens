@@ -116,13 +116,27 @@ Add Review when the user asks about:
   communication, responsiveness, mold, pests, noise, billing, verified stay,
   lived there, rented there, tenant said, complaints, issues
 
-Add ScamReport when the user asks about:
-  scam, fraud, fake, suspicious, deposit stolen, bait and switch, unlicensed,
-  warning, dangerous, ripoff, sketchy, avoid, red flag, shady
+Add ScamReport when the user mentions ANY of:
+  scam, fraud, fraudulent, fake, suspicious, deposit stolen, bait and switch,
+  unlicensed, warning, warnings, fraud warning, danger, dangerous, ripoff,
+  sketchy, avoid, red flag, shady, alert, alerts, reported fraud, reported scam,
+  known scams, fraud history, scam history
 
-Add multiple entities only when the user EXPLICITLY asks for more than one type:
+Add Review when the user asks about:
+  experience, what is it like, how is, rating, reviews, maintenance quality,
+  communication, responsiveness, mold, pests, noise, billing, verified stay,
+  lived there, rented there, tenant said, complaints, issues
+
+IMPORTANT: A query can trigger multiple entity types without using the word "and".
+If the user asks about properties AND mentions fraud/warnings/scams in the same query,
+always include BOTH Property AND ScamReport in targetEntityTypes.
+
+Examples:
   "properties and scam reports in Miami" → ["Property","ScamReport"]
   "reviews and scams for Tampa landlords" → ["Review","ScamReport"]
+  "highly rated properties in Tampa with recent fraud warnings" → ["Property","ScamReport"]
+  "safe apartments in Orlando with no scam history" → ["Property","ScamReport"]
+  "best places in Tampa and any fraud alerts" → ["Property","ScamReport"]
 
 ------------------------------------
 SEMANTIC MAPPINGS — RENT/PRICE
@@ -253,6 +267,10 @@ HARD RULES
 6. Never invent constraints the user did not express. When uncertain, use null/false.
 7. For ambiguous queries with no strong entity signal: default to ["Property"].
 8. queryText MUST be null when filters fully capture the intent.
+9. hasVerifiedReviews: true ONLY when user explicitly asks to filter properties by whether
+   they have verified reviews (e.g. "properties with verified reviews only", "only show
+   properties that have verified tenant reviews"). Do NOT set it for general mentions of
+   "reviews" or "with verified reviews" as a quality signal — use the Review entity for that.
 
 ------------------------------------
 EXAMPLE 1 — Multi-entity mixed intent
@@ -261,7 +279,7 @@ Input: "cheap apartments in Tampa with verified reviews and any recent scam repo
 
 Output:
 {
-  "targetEntityTypes": ["Property", "ScamReport"],
+  "targetEntityTypes": ["Property", "Review", "ScamReport"],
   "queriesByEntity": {
     "Property": {
       "queryText": null,
@@ -269,7 +287,7 @@ Output:
       "propertyType": "apartment",
       "landlordName": null,
       "minRating": null,
-      "hasVerifiedReviews": true,
+      "hasVerifiedReviews": false,
       "sortBy": null,
       "minRent": null,
       "maxRent": null,
@@ -277,6 +295,25 @@ Output:
       "minCommunicationRating": null,
       "minMaintenanceRating": null,
       "issueTypes": null,
+      "scamType": null,
+      "minSeverity": null,
+      "maxSeverity": null,
+      "dateReportedAfter": null
+    },
+    "Review": {
+      "queryText": null,
+      "city": "Tampa",
+      "minRent": null,
+      "maxRent": null,
+      "minRating": null,
+      "minCommunicationRating": null,
+      "minMaintenanceRating": null,
+      "verifiedOnly": true,
+      "issueTypes": null,
+      "sortBy": null,
+      "propertyType": "apartment",
+      "landlordName": null,
+      "hasVerifiedReviews": false,
       "scamType": null,
       "minSeverity": null,
       "maxSeverity": null,
@@ -306,7 +343,7 @@ Output:
     "📍 Tampa",
     "🏠 Apartments",
     "💰 Affordability preferred",
-    "✅ Has verified reviews",
+    "✅ Verified tenant reviews",
     "📅 Scam reports: last 3 months"
   ]
 }
