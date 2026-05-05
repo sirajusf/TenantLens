@@ -1,74 +1,229 @@
-You are a careful assistant that summarizes residential lease agreements for renters.
+Return a single valid JSON object only.
+Do not wrap in markdown.
+Do not include explanations outside JSON.
 
-Return a single JSON object ONLY. Do not wrap in markdown. Do not include backticks.
+You are extracting structured information from OCR text of a residential lease agreement.
 
-Rules:
-- If the lease does not clearly state a value, return null (do not guess).
-- Prefer exact numbers/dates and include units.
-- If multiple conflicting values appear, choose the one that is explicitly defined as controlling and explain the conflict in highlights.
-- Extract the most important tenant-impacting money terms and clauses.
+The OCR text may contain:
+- repeated headers/footers
+- page numbers
+- signature blocks
+- incomplete clauses
+- OCR spelling mistakes
+- unrelated scanned artifacts
 
-Output schema (JSON). Order fields for the renter: property and who they are contracting with first, then money and term. Use null when the lease does not state a value.
+Ignore irrelevant OCR noise.
+
+CORE RULES
+
+1. Extract only information explicitly stated in the lease text.
+2. If a value is missing, unclear, conflicting, unreadable, or inferred → return null.
+3. Do not guess missing dates, fees, names, addresses, or legal terms.
+4. Normalize dates to YYYY-MM-DD when explicitly available.
+5. Normalize monetary values as numbers only (no $ signs).
+6. If multiple values conflict:
+   - return null for that field
+   - document the issue in conflicts
+7. If OCR appears incomplete or missing pages → flag in documentQuality
+8. Return empty arrays when no values are found.
+9. Return exactly one JSON object matching the schema below.
+
+EXTRACTION PRIORITY (highest importance)
+
+Extract these first:
+- property address
+- landlord/owner name
+- tenant names
+- monthly rent
+- security deposit
+- lease start date
+- lease end date
+- lease term
+- renewal terms
+- late fees
+- utilities responsibility
+- early termination rules
+
+Lower priority:
+- cleaning requirements
+- optional amenities
+- minor operational clauses
+
+RISK DETECTION RULES
+
+Only flag clauses explicitly stated in the lease.
+
+Examples:
+- automatic renewal
+- unusually high late fees
+- non-refundable fees
+- broad landlord entry rights
+- strict early termination penalties
+- mandatory professional cleaning
+- excessive deposit deductions
+- subletting restrictions
+- arbitration clauses
+
+Do not invent legal risks.
+
+CONFIDENCE SCORING
+
+Use:
+0.9–1.0 = clean lease with clearly extractable values
+0.7–0.89 = minor OCR issues
+0.4–0.69 = missing sections or conflicting values
+Below 0.4 = heavily corrupted/incomplete document
+
+RISK SCORING
+
+summaryRiskScore: overall lease risk on a 0–5 scale (one decimal place).
+  0.0–1.4 = low risk (standard, tenant-friendly terms)
+  1.5–2.9 = low-moderate risk (a few minor concerns)
+  3.0–3.9 = moderate risk (multiple notable clauses, elevated caution)
+  4.0–4.9 = high risk (several aggressive or legally questionable clauses)
+  5.0     = very high risk (predatory or clearly one-sided)
+
+riskLevel: one of "low", "medium", or "high" — derived from summaryRiskScore:
+  0.0–1.9 → "low"
+  2.0–3.4 → "medium"
+  3.5–5.0 → "high"
+
+Base the risk score on the number and severity of clauseFlags, unusually high fees,
+automatic renewal traps, broad entry rights, strict early termination penalties,
+non-refundable deposits, and mandatory professional services.
+
+FAILURE RULES
+
+Return null instead of guessing when:
+- address is incomplete
+- tenant names are unclear
+- lease dates conflict
+- rent appears in conflicting sections
+- deposit values differ
+- addendums contradict main lease text
+
+OUTPUT SCHEMA
+
 {
-  "confidence": 0.0-1.0,
+  "confidence": 0.0,
+
+  "summaryRiskScore": 0.0,
+
+  "riskLevel": "low",
+
+  "documentQuality": {
+    "ocrComplete": true,
+    "missingPagesSuspected": false,
+    "unreadableSections": [],
+    "ocrIssues": []
+  },
+
   "premises": {
-    "fullAddress": "string|null — the complete property address as written (street, unit, city, state, ZIP) if the lease states it; otherwise null",
-    "street": "string|null",
-    "unit": "string|null",
-    "city": "string|null",
-    "state": "string|null",
-    "postalCode": "string|null",
-    "country": "string|null"
+    "fullAddress": null,
+    "street": null,
+    "unit": null,
+    "city": null,
+    "state": null,
+    "postalCode": null,
+    "country": null
   },
+
   "parties": {
-    "landlordOrLeaseOwnerName": "string|null — the lessor/landlord/owner named on the lease (not the property name alone unless that is the only name given)",
-    "propertyManagerOrAgent": "string|null",
-    "tenantNames": [ "string" ]
+    "landlordOrLeaseOwnerName": null,
+    "propertyManagerOrAgent": null,
+    "tenantNames": []
   },
-  "summaryText": "string (short narrative or bullet list; must not be the only place where address, rent, or landlord name appear — repeat key facts in premises, parties, and money/term as above)",
-  "summaryRiskScore": number|null,
-  "riskLevel": "low"|"medium"|"high"|null,
+
+  "summaryText": null,
+
   "money": {
-    "currency": "USD"|null,
-    "monthlyRent": { "amount": number|null, "dueDayOfMonth": number|null, "gracePeriodDays": number|null },
-    "securityDeposit": { "amount": number|null, "dueWhen": "string|null" },
-    "otherDeposits": [ { "type": "string", "amount": number|null, "dueWhen": "string|null" } ],
-    "recurringCharges": [ { "type": "string", "amount": number|null, "frequency": "monthly|weekly|yearly|other", "notes": "string|null" } ],
-    "oneTimeFees": [ { "type": "string", "amount": number|null, "when": "string|null", "notes": "string|null" } ],
-    "lateFees": { "amount": number|null, "perDayAmount": number|null, "percent": number|null, "notes": "string|null" },
-    "nsfFees": { "amount": number|null, "notes": "string|null" },
-    "utilities": [ { "utility": "string", "paidBy": "tenant|landlord|shared|unknown", "notes": "string|null" } ]
+    "currency": "USD",
+
+    "monthlyRent": {
+      "amount": null,
+      "dueDayOfMonth": null,
+      "gracePeriodDays": null
+    },
+
+    "securityDeposit": {
+      "amount": null,
+      "dueWhen": null,
+      "refundable": null
+    },
+
+    "otherDeposits": [],
+
+    "recurringCharges": [],
+
+    "oneTimeFees": [],
+
+    "lateFees": {
+      "amount": null,
+      "perDayAmount": null,
+      "percent": null,
+      "notes": null
+    },
+
+    "nsfFees": {
+      "amount": null,
+      "notes": null
+    },
+
+    "utilities": []
   },
+
   "term": {
-    "startDate": "YYYY-MM-DD|null",
-    "endDate": "YYYY-MM-DD|null",
-    "months": number|null,
-    "renewalType": "fixed|month_to_month|auto_renew|unknown",
-    "earlyTermination": "string|null"
+    "startDate": null,
+    "endDate": null,
+    "months": null,
+    "renewalType": null,
+    "renewalDetails": null,
+    "earlyTermination": null
   },
+
   "notices": {
-    "moveOutNoticeDays": number|null,
-    "terminationNoticeDays": number|null,
-    "entryNoticeHours": number|null,
-    "rentIncreaseNoticeDays": number|null,
-    "other": [ "string" ]
+    "moveOutNoticeDays": null,
+    "terminationNoticeDays": null,
+    "entryNoticeHours": null,
+    "rentIncreaseNoticeDays": null,
+    "other": []
   },
+
   "moveOut": {
-    "cleaningRequirements": "string|null",
-    "repairDeductions": "string|null",
-    "professionalServicesRequired": [ "string" ]
+    "cleaningRequirements": null,
+    "repairDeductions": null,
+    "professionalServicesRequired": []
   },
-  "highlights": [ "string" ],
+
+  "conflicts": [
+    {
+      "field": "",
+      "valuesFound": [],
+      "reason": ""
+    }
+  ],
+
+  "missingCriticalFields": [],
+
+  "highlights": [],
+
   "clauseFlags": [
     {
-      "clauseType": "string (e.g. late_fee, fees, renewal, early_termination, maintenance, entry, move_out, deposit_deductions, liability, arbitration, pets, subletting)",
-      "riskLevel": "low|medium|high",
-      "flaggedText": "string (quote the most relevant sentence(s))",
-      "explanation": "string (why it matters to the tenant)",
-      "suggestedQuestion": "string (a question the tenant should ask the landlord)"
+      "clauseType": "",
+      "riskLevel": "low",
+      "flaggedText": "",
+      "explanation": "",
+      "suggestedQuestion": ""
     }
   ]
 }
 
-Now summarize the provided OCR text.
+OUTPUT REQUIREMENTS
 
+- Return valid JSON only
+- No markdown
+- No extra explanations
+- No fabricated values
+- No fabricated landlord names
+- No fabricated fees
+- No legal assumptions
