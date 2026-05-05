@@ -5,17 +5,17 @@ Output ONLY the JSON. No markdown, no code fences, no explanation, no extra keys
 
 TODAY: {{TODAY}}
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 PLATFORM CONTEXT
-═══════════════════════════════════════════════════════════
+------------------------------------
 TenantLens has three data types:
   Property    — rental listings (apartments, houses, condos, etc.)
   Review      — tenant-written reviews with ratings, issue tags, rent paid
   ScamReport  — fraud/scam reports filed against properties or landlords
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 OUTPUT SCHEMA
-═══════════════════════════════════════════════════════════
+------------------------------------
 {
   "targetEntityTypes": ["Property" | "Review" | "ScamReport"],
   "queriesByEntity": {
@@ -28,11 +28,10 @@ OUTPUT SCHEMA
 
 ONLY include entity keys that appear in targetEntityTypes.
 
-── PropertyQuery ─────────────────────────────────────────
+------------------------------------ PropertyQuery ------------------------------------
 {
   "queryText"          : string | null,
   "city"               : string | null,
-  "propertyType"       : "apartment"|"house"|"condo"|"townhouse"|"studio"|"duplex"|null,
   "landlordName"       : string | null,
   "minRating"          : number | null,
   "hasVerifiedReviews" : boolean,
@@ -49,7 +48,7 @@ ONLY include entity keys that appear in targetEntityTypes.
   "dateReportedAfter"  : null
 }
 
-── ReviewQuery ───────────────────────────────────────────
+------------------------------------ ReviewQuery ------------------------------------
 {
   "queryText"               : string | null,
   "city"                    : string | null,
@@ -70,7 +69,7 @@ ONLY include entity keys that appear in targetEntityTypes.
   "dateReportedAfter"       : null
 }
 
-── ScamQuery ─────────────────────────────────────────────
+------------------------------------ ScamQuery ------------------------------------
 {
   "queryText"          : string | null,
   "city"               : string | null,
@@ -91,9 +90,9 @@ ONLY include entity keys that appear in targetEntityTypes.
   "issueTypes"         : null
 }
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 RULE: queryText
-═══════════════════════════════════════════════════════════
+------------------------------------
 queryText is a KEYWORD matched against property title, address, and community name.
 Set queryText to NULL when the user's intent is fully captured by structured fields.
 Set queryText only for:
@@ -105,11 +104,11 @@ BAD:  "apartments in Tampa" → queryText: "apartments in Tampa"  ← repeats st
 GOOD: "apartments in Tampa" → city:"Tampa", propertyType:"apartment", queryText:null
 
 BAD:  "cheap houses" → queryText:"cheap houses"
-GOOD: "cheap houses"  → propertyType:"house", maxRent:1500, queryText:null
+GOOD: "cheap houses"  → propertyType:"house", maxRent:null, queryText:null  (no hard dollar limit; "cheap" is vague)
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 ENTITY SELECTION
-═══════════════════════════════════════════════════════════
+------------------------------------
 Default to ["Property"] when intent is ambiguous or purely location/price based.
 
 Add Review when the user asks about:
@@ -125,21 +124,30 @@ Add multiple entities only when the user EXPLICITLY asks for more than one type:
   "properties and scam reports in Miami" → ["Property","ScamReport"]
   "reviews and scams for Tampa landlords" → ["Review","ScamReport"]
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — RENT/PRICE
-═══════════════════════════════════════════════════════════
-"super cheap" / "very affordable" / "on a tight budget"  → maxRent: 1000
-"cheap" / "affordable" / "budget" / "inexpensive"        → maxRent: 1500
-"moderate" / "mid-range" / "reasonable"                  → minRent: 1200, maxRent: 2200
-"expensive" / "upscale" / "premium"                      → minRent: 2200
-"luxury" / "high-end" / "lavish"                         → minRent: 3000
-"under $X" / "below $X" / "max $X" / "no more than $X"  → maxRent: X
-"over $X" / "above $X" / "at least $X" / "minimum $X"   → minRent: X
-"around $X" / "about $X" / "roughly $X"                  → minRent: X×0.9, maxRent: X×1.1 (round to 50)
+------------------------------------
+IMPORTANT: Only set minRent/maxRent when the user provides an EXPLICIT dollar amount.
+For vague affordability words, use sortBy instead — do NOT invent a dollar threshold.
 
-═══════════════════════════════════════════════════════════
+Vague affordability words → NO minRent/maxRent, use sortBy:
+  "cheap" / "affordable" / "budget" / "inexpensive" / "economical"
+  "super cheap" / "very affordable" / "on a tight budget"
+  "moderate" / "mid-range" / "reasonable"
+  → For Review queries: sortBy: "rent"
+  → For Property queries: sortBy: null (no rent sort available); omit rent filter entirely
+  → Chip: "💰 Sorted by affordability" (Review) or "💰 Affordability preferred" (Property)
+
+Explicit amounts only → set minRent / maxRent:
+  "under $X" / "below $X" / "max $X" / "no more than $X"  → maxRent: X
+  "over $X" / "above $X" / "at least $X" / "minimum $X"   → minRent: X
+  "around $X" / "about $X" / "roughly $X"                  → minRent: X×0.9, maxRent: X×1.1 (round to 50)
+  "expensive" / "upscale" / "premium" / "luxury" / "high-end" / "lavish"
+  → These still carry price signal: minRent: 2500 (premium) or 3500 (luxury)
+
+------------------------------------
 SEMANTIC MAPPINGS — OVERALL RATING
-═══════════════════════════════════════════════════════════
+------------------------------------
 "decent" / "okay" / "acceptable" / "not bad"      → minRating: 3.0
 "good" / "good ratings" / "well rated"            → minRating: 3.5
 "highly rated" / "great" / "very good"            → minRating: 4.0
@@ -150,9 +158,9 @@ explicit "4 stars" / "rated 4 out of 5"           → minRating: 4.0
 NOTE: For NEGATIVE qualifiers ("bad ratings", "poor reviews", "worst"), do NOT set minRating.
 Instead, keep minRating null and set sortBy or issueTypes to express the intent.
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — SUB-RATINGS (Reviews only)
-═══════════════════════════════════════════════════════════
+------------------------------------
 "responsive landlord" / "good communication" / "communicates well"  → minCommunicationRating: 3.5
 "great communication" / "very responsive" / "excellent landlord"    → minCommunicationRating: 4.0
 "bad communication" / "unresponsive landlord" / "ignores tenants"   → issueTypes includes nothing; set minCommunicationRating: null and queryText can hint
@@ -161,9 +169,9 @@ SEMANTIC MAPPINGS — SUB-RATINGS (Reviews only)
 "great maintenance" / "excellent upkeep" / "repairs are fast"       → minMaintenanceRating: 4.0
 "bad maintenance" / "poor upkeep" / "slow repairs" / "falling apart"→ issueTypes: ["maintenance"]
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — ISSUE TYPES (Reviews only)
-═══════════════════════════════════════════════════════════
+------------------------------------
 Map user complaints to these exact DB tags:
   mold / mildew / black mold                   → "mold"
   roaches / rats / mice / ants / infestation   → "pests"
@@ -179,9 +187,9 @@ Map user complaints to these exact DB tags:
 
 Include ALL that match. issueTypes: ["mold","pests"] if both are mentioned.
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — SCAM
-═══════════════════════════════════════════════════════════
+------------------------------------
 deposit / security deposit stolen             → scamType: "deposit_scam"
 fake listing / ghost listing / fake post      → scamType: "fake_listing"
 bait and switch / not what was shown          → scamType: "bait_and_switch"
@@ -192,9 +200,9 @@ anything else / vague / fraud / con           → scamType: "other"
 "extreme" / "worst" / "critical" / "severe"   → minSeverity: 4.5
 "minor" / "low risk" / "small scam"           → maxSeverity: 2.0
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — DATES (use TODAY = {{TODAY}})
-═══════════════════════════════════════════════════════════
+------------------------------------
 Compute relative dates from TODAY and output in YYYY-MM-DD format.
 "last week"           → TODAY minus 7 days
 "last month"          → TODAY minus 1 month
@@ -207,17 +215,17 @@ Compute relative dates from TODAY and output in YYYY-MM-DD format.
 
 Always applies to dateReportedAfter in ScamQuery.
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 SEMANTIC MAPPINGS — SORTING
-═══════════════════════════════════════════════════════════
+------------------------------------
 "best rated" / "highest rated" / "top rated" / "most popular"  → sortBy: "rating"  (Property/Review)
 "cheapest" / "lowest rent" / "most affordable"                  → sortBy: "rent"    (Review)
 "newest" / "most recent" / "latest"                             → sortBy: "newest"  (Review/ScamReport)
 "most dangerous" / "highest severity" / "worst scams"           → sortBy: "severity" (ScamReport)
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 INTERPRETED FILTERS — CHIP FORMAT
-═══════════════════════════════════════════════════════════
+------------------------------------
 One chip per meaningful extracted constraint. Start each with an emoji:
   📍  city                    → "📍 Tampa"
   🏠  property type           → "🏠 Apartments"
@@ -234,9 +242,9 @@ One chip per meaningful extracted constraint. Start each with an emoji:
 
 Keep chips concise (under 40 chars each). Omit chips for null/false/default fields.
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 HARD RULES
-═══════════════════════════════════════════════════════════
+------------------------------------
 1. Return exactly one JSON object. No other text.
 2. Include at least one entity in targetEntityTypes.
 3. Only include entity keys in queriesByEntity that are in targetEntityTypes.
@@ -246,9 +254,9 @@ HARD RULES
 7. For ambiguous queries with no strong entity signal: default to ["Property"].
 8. queryText MUST be null when filters fully capture the intent.
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 EXAMPLE 1 — Multi-entity mixed intent
-═══════════════════════════════════════════════════════════
+------------------------------------
 Input: "cheap apartments in Tampa with verified reviews and any recent scam reports"
 
 Output:
@@ -264,7 +272,7 @@ Output:
       "hasVerifiedReviews": true,
       "sortBy": null,
       "minRent": null,
-      "maxRent": 1500,
+      "maxRent": null,
       "verifiedOnly": false,
       "minCommunicationRating": null,
       "minMaintenanceRating": null,
@@ -297,15 +305,15 @@ Output:
   "interpretedFilters": [
     "📍 Tampa",
     "🏠 Apartments",
-    "💰 Max $1,500/mo",
+    "💰 Affordability preferred",
     "✅ Has verified reviews",
     "📅 Scam reports: last 3 months"
   ]
 }
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 EXAMPLE 2 — Review-specific with sub-ratings
-═══════════════════════════════════════════════════════════
+------------------------------------
 Input: "verified tenant reviews in Orlando where landlord is responsive but there were mold and pest issues"
 
 Output:
@@ -340,9 +348,9 @@ Output:
   ]
 }
 
-═══════════════════════════════════════════════════════════
+------------------------------------
 EXAMPLE 3 — Scam-focused with severity and date
-═══════════════════════════════════════════════════════════
+------------------------------------
 Input: "serious deposit scams in Miami reported in the last 6 months"
 
 Output:
