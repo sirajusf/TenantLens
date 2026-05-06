@@ -13,17 +13,20 @@ namespace LeaseLense.Web.Controllers;
 public sealed class LeaseSummarizerController : Controller
 {
     private readonly IUserAccountService _userAccountService;
-    private readonly ILeaseSummarizationQueue _queue;
     private readonly LeaseLensDbContext _leaseLensDb;
+    private readonly IDocumentExtractionService _extractionService;
+    private readonly ILeaseSummarizationLlmClient _llmClient;
 
     public LeaseSummarizerController(
         LeaseLensDbContext leaseLensDb,
         IUserAccountService userAccountService,
-        ILeaseSummarizationQueue queue)
+        IDocumentExtractionService extractionService,
+        ILeaseSummarizationLlmClient llmClient)
     {
         _leaseLensDb = leaseLensDb;
         _userAccountService = userAccountService;
-        _queue = queue;
+        _extractionService = extractionService;
+        _llmClient = llmClient;
     }
 
     [HttpGet]
@@ -108,8 +111,9 @@ public sealed class LeaseSummarizerController : Controller
             propertyId = placeholder.PropertyId;
         }
 
+        // Create the document and job rows up front
         var leaseDocumentId = Guid.NewGuid();
-        _leaseLensDb.LeaseDocuments.Add(new LeaseDocument
+        var leaseDocumentRow = new LeaseDocument
         {
             LeaseDocumentId = leaseDocumentId,
             RenterId = renterId.Value,
@@ -118,34 +122,89 @@ public sealed class LeaseSummarizerController : Controller
             FileUrl = null,
             RawText = null,
             UploadedAt = DateTime.UtcNow
-        });
+        };
+        _leaseLensDb.LeaseDocuments.Add(leaseDocumentRow);
 
         var jobId = Guid.NewGuid();
-        _leaseLensDb.LeaseSummarizationJobs.Add(new LeaseSummarizationJob
+        var jobRow = new LeaseSummarizationJob
         {
             LeaseSummarizationJobId = jobId,
             LeaseDocumentId = leaseDocumentId,
             RenterId = renterId.Value,
-            Status = "queued",
+            Status = "processing",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             CompletedAt = null,
             ErrorMessage = null,
             LeaseAnalysisId = null
-        });
-
+        };
+        _leaseLensDb.LeaseSummarizationJobs.Add(jobRow);
         await _leaseLensDb.SaveChangesAsync(cancellationToken);
 
-        await _queue.QueueAsync(new LeaseSummarizationJobRequest
+        // Run OCR + LLM synchronously — user waits on this request
+        try
         {
-            LeaseSummarizationJobId = jobId,
-            Email = email,
-            FileName = leaseDocument.FileName ?? string.Empty,
-            ContentType = leaseDocument.ContentType,
-            FileSizeBytes = leaseDocument.Length,
-            FileHashSha256 = hashHex,
-            FileBytes = fileBytes
-        }, cancellationToken);
+            var ocr = await _extractionService.ExtractOcrTextAsync(
+                fileBytes,
+                documentType: "lease",
+                contentType: leaseDocument.ContentType,
+                cancellationToken: cancellationToken);
+
+            leaseDocumentRow.RawText = ocr.RawText;
+
+            var llm = await _llmClient.TrySummarizeAsync(ocr.RawText, cancellationToken);
+            if (llm is null)
+            {
+                throw new InvalidOperationException("Lease summarization model did not return a result.");
+            }
+
+            var analysisId = Guid.NewGuid();
+            _leaseLensDb.LeaseAnalyses.Add(new LeaseAnalysis
+            {
+                LeaseAnalysisId = analysisId,
+                LeaseDocumentId = leaseDocumentId,
+                RenterId = renterId.Value,
+                PropertyId = propertyId,
+                SummaryRiskScore = llm.SummaryRiskScore,
+                RiskLevel = llm.RiskLevel,
+                SummaryText = llm.SummaryText,
+                StructuredSummaryJson = string.IsNullOrWhiteSpace(llm.RawJson) ? null : llm.RawJson,
+                ModelVersion = null,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            foreach (var flag in llm.ClauseFlags)
+            {
+                _leaseLensDb.LeaseClauseFlags.Add(new LeaseClauseFlag
+                {
+                    LeaseClauseFlagId = Guid.NewGuid(),
+                    LeaseAnalysisId = analysisId,
+                    ClauseType = flag.ClauseType,
+                    RiskLevel = flag.RiskLevel,
+                    FlaggedText = flag.FlaggedText,
+                    Explanation = flag.Explanation,
+                    SuggestedQuestion = flag.SuggestedQuestion
+                });
+            }
+
+            jobRow.Status = "succeeded";
+            jobRow.LeaseAnalysisId = analysisId;
+            jobRow.UpdatedAt = DateTime.UtcNow;
+            jobRow.CompletedAt = DateTime.UtcNow;
+
+            await _leaseLensDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception)
+        {
+            jobRow.Status = "failed";
+            jobRow.ErrorMessage = "Document analysis failed. Please try again.";
+            jobRow.UpdatedAt = DateTime.UtcNow;
+            jobRow.CompletedAt = DateTime.UtcNow;
+            await _leaseLensDb.SaveChangesAsync(cancellationToken);
+
+            TempData["LeaseSummarizerError"] = "Document analysis failed. Please try again.";
+            return RedirectToAction(nameof(Index));
+        }
 
         return RedirectToAction(nameof(Status), new { id = jobId });
     }
@@ -215,4 +274,3 @@ public sealed class LeaseSummarizerController : Controller
         });
     }
 }
-

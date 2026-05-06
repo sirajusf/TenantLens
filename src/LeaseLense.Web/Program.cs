@@ -41,8 +41,7 @@ builder.Services.AddScoped<SmartSearchOrchestrator>();
 builder.Services.AddScoped<IDocumentExtractionService, AzureDocumentIntelligenceExtractionService>();
 builder.Services.AddSingleton<IResidencyFallbackQueue, ResidencyFallbackQueue>();
 builder.Services.AddHostedService<ResidencyFallbackWorker>();
-builder.Services.AddSingleton<ILeaseSummarizationQueue, LeaseSummarizationQueue>();
-builder.Services.AddHostedService<LeaseSummarizationWorker>();
+// LeaseSummarizationQueue and LeaseSummarizationWorker removed — summarization is now synchronous
 builder.Services
     .AddIdentity<IdentityUser, IdentityRole>(options =>
     {
@@ -87,7 +86,6 @@ TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
