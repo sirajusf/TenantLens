@@ -3,6 +3,7 @@ using LeaseLense.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace LeaseLense.Infrastructure.Data;
+//here this is leanselensdbcontext class which is used to interact with the database is exending 
 
 public sealed class LeaseLensDbContext : DbContext, ILeaseLensRepository
 {
