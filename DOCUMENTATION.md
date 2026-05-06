@@ -161,6 +161,7 @@ flowchart TD
 ---
 
 ## 4. The Four Layers Explained
+Line by line
 
 ### Layer 1 — Domain (`LeaseLense.Domain`)
 
