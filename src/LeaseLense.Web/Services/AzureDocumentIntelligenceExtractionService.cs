@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Azure;
 using Azure.AI.DocumentIntelligence;
 using LeaseLense.Application.Profile;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LeaseLense.Web.Services;

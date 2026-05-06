@@ -9,6 +9,23 @@ public sealed class SmartSearchOrchestrator
     private readonly ICoreSearchService _coreSearch;
     private readonly ILogger<SmartSearchOrchestrator> _logger;
 
+    private static readonly string[] QualifierWords =
+    [
+        
+        "cheap", "affordable", "budget", "expensive", "luxury", "moderate", "under", "below",
+        "above", "over", "around", "max", "minimum",
+        "good", "bad", "poor", "great", "excellent", "best", "worst", "highly", "highly-rated",
+        "top", "decent", "terrible", "awful", "amazing",
+        "verified", "confirmed",
+        "scam", "fraud", "fake", "suspicious", "dangerous", "sketchy", "shady",
+        "recent", "latest", "newest", "last", "past", "since", "new",
+        // issue types
+        "mold", "pests", "noise", "noisy", "maintenance", "billing", "unsafe", "dirty",
+        "roaches", "parking", "heating", "cooling", "plumbing", "leak",
+        // intent words
+        "with", "without", "near", "not", "avoid", "responsive", "unresponsive",
+    ];
+
     public SmartSearchOrchestrator(
         INlQueryParserLlmClient nlParser,
         ICoreSearchService coreSearch,
@@ -173,27 +190,8 @@ public sealed class SmartSearchOrchestrator
         return QualifierWords.Any(q => lower.Contains(q));
     }
 
-    // Words that indicate the user has semantic intent beyond a simple keyword search.
-    private static readonly string[] QualifierWords =
-    [
-        // price
-        "cheap", "affordable", "budget", "expensive", "luxury", "moderate", "under", "below",
-        "above", "over", "around", "max", "minimum",
-        // quality
-        "good", "bad", "poor", "great", "excellent", "best", "worst", "highly", "highly-rated",
-        "top", "decent", "terrible", "awful", "amazing",
-        // verification
-        "verified", "confirmed",
-        // scam/fraud
-        "scam", "fraud", "fake", "suspicious", "dangerous", "sketchy", "shady",
-        // time
-        "recent", "latest", "newest", "last", "past", "since", "new",
-        // issue types
-        "mold", "pests", "noise", "noisy", "maintenance", "billing", "unsafe", "dirty",
-        "roaches", "parking", "heating", "cooling", "plumbing", "leak",
-        // intent words
-        "with", "without", "near", "not", "avoid", "responsive", "unresponsive",
-    ];
+ 
+    
 
     private async Task<NlQueryParseResult?> TryParseNlAsync(string q, CancellationToken cancellationToken)
     {
